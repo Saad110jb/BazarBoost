@@ -1,0 +1,2167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BazarBoost — System Architecture Specification & Engineering Manual</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Prism.js (Custom Dark Syntax Highlighting Theme) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
+  
+  <style>
+    /* Design Token System */
+    :root {
+      --bg-primary: #07070A;
+      --bg-component: #111119;
+      --bg-component-hover: #171724;
+      --border-subtle: #1A1A24;
+      --border-accent: rgba(139, 92, 246, 0.25);
+      --accent-primary: #8B5CF6;
+      --accent-primary-glow: rgba(139, 92, 246, 0.15);
+      --accent-secondary: #10B981;
+      --accent-secondary-glow: rgba(16, 185, 129, 0.15);
+      --danger: #EF4444;
+      --danger-glow: rgba(239, 68, 68, 0.15);
+      --warning: #F59E0B;
+      --warning-glow: rgba(245, 158, 11, 0.15);
+      --text-primary: #F1F5F9;
+      --text-muted: #64748B;
+      --sidebar-width: 320px;
+      --glass-bg: rgba(17, 17, 25, 0.75);
+      --glass-blur: blur(12px);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: 'Inter', sans-serif;
+      line-height: 1.6;
+    }
+
+    body {
+      display: flex;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg-primary);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-subtle);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text-muted);
+    }
+
+    /* Fixed Left Sidebar */
+    .sidebar {
+      width: var(--sidebar-width);
+      height: 100vh;
+      position: fixed;
+      left: 0;
+      top: 0;
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur);
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      z-index: 100;
+      padding: 1.5rem 1.25rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border-subtle);
+      margin-bottom: 1rem;
+    }
+
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent-primary), #A78BFA);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 800;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    .brand-text {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 1.25rem;
+      letter-spacing: -0.025em;
+      background: linear-gradient(to right, #FFF, #A78BFA);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-version {
+      font-size: 0.75rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      background: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.25);
+      color: #C084FC;
+      margin-left: auto;
+    }
+
+    /* Search Container */
+    .search-box {
+      position: relative;
+      margin-bottom: 1.25rem;
+    }
+
+    .search-input {
+      width: 100%;
+      background: rgba(7, 7, 10, 0.6);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 0.6rem 1rem 0.6rem 2.2rem;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .search-input:focus {
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      width: 14px;
+      height: 14px;
+      pointer-events: none;
+    }
+
+    /* Sidebar Navigation Links */
+    .nav-links {
+      flex: 1;
+      overflow-y: auto;
+      padding-right: 0.25rem;
+    }
+
+    .nav-group {
+      margin-bottom: 1.25rem;
+    }
+
+    .nav-group-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+      padding-left: 0.5rem;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      padding: 0.4rem 0.75rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      margin-bottom: 0.15rem;
+      border-left: 2px solid transparent;
+    }
+
+    .nav-item:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .nav-item.active {
+      color: var(--text-primary);
+      background: rgba(139, 92, 246, 0.08);
+      border-left-color: var(--accent-primary);
+      font-weight: 500;
+    }
+
+    .nav-item-num {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      font-size: 0.8rem;
+      color: var(--accent-primary);
+      width: 28px;
+      display: inline-block;
+    }
+
+    .nav-item-num.appendix {
+      color: var(--accent-secondary);
+    }
+
+    /* Main Container */
+    .main-wrapper {
+      margin-left: var(--sidebar-width);
+      flex: 1;
+      min-width: 0; /* Prevents flex items from overflowing */
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Bar Header */
+    .top-bar {
+      height: 60px;
+      border-bottom: 1px solid var(--border-subtle);
+      background: rgba(7, 7, 10, 0.8);
+      backdrop-filter: var(--glass-blur);
+      position: sticky;
+      top: 0;
+      z-index: 90;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 3rem;
+    }
+
+    .top-bar-meta {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .meta-badge {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-secondary);
+      box-shadow: 0 0 8px var(--accent-secondary);
+    }
+
+    .meta-badge.alert {
+      background: var(--warning);
+      box-shadow: 0 0 8px var(--warning);
+    }
+
+    /* Main Content */
+    .content-area {
+      max-width: 960px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 3rem;
+      padding-bottom: 8rem;
+    }
+
+    /* Cover / Hero Component */
+    .hero-card {
+      background: radial-gradient(circle at top right, rgba(139, 92, 246, 0.08), transparent), var(--bg-component);
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      padding: 4rem 3rem;
+      margin-bottom: 4rem;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .hero-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+    }
+
+    .hero-pretitle {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent-primary);
+      margin-bottom: 1.5rem;
+    }
+
+    .hero-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 3rem;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin-bottom: 1rem;
+      color: white;
+    }
+
+    .hero-subtitle {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 3rem;
+      max-width: 700px;
+    }
+
+    .hero-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2rem;
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 2rem;
+    }
+
+    .hero-meta-block h4 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.4rem;
+    }
+
+    .hero-meta-block p {
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    /* Chapter Headers */
+    .chapter-anchor {
+      position: relative;
+      top: -90px; /* Offset for sticky header bar */
+    }
+
+    .chapter-section {
+      margin-top: 6rem;
+      border-top: 1px dashed var(--border-subtle);
+      padding-top: 4rem;
+    }
+
+    .chapter-section:first-of-type {
+      margin-top: 0;
+      border-top: none;
+      padding-top: 0;
+    }
+
+    .chapter-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: rgba(139, 92, 246, 0.1);
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      color: #A78BFA;
+      padding: 0.3rem 0.75rem;
+      border-radius: 50px;
+      margin-bottom: 1.5rem;
+    }
+
+    .chapter-badge.appendix {
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      color: #34D399;
+    }
+
+    .chapter-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: white;
+      margin-bottom: 2rem;
+    }
+
+    /* Typography & Core Content Elements */
+    h2, h3, h4 {
+      font-family: 'Outfit', sans-serif;
+      color: white;
+      margin-top: 2.5rem;
+      margin-bottom: 1rem;
+      font-weight: 600;
+    }
+
+    h2 {
+      font-size: 1.5rem;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 0.5rem;
+    }
+
+    h3 {
+      font-size: 1.15rem;
+      color: #D8B4FE;
+    }
+
+    p {
+      margin-bottom: 1.25rem;
+      color: #E2E8F0;
+      font-size: 0.95rem;
+      font-weight: 400;
+      line-height: 1.7;
+    }
+
+    strong {
+      color: white;
+      font-weight: 600;
+    }
+
+    ul, ol {
+      margin-left: 1.5rem;
+      margin-bottom: 1.5rem;
+      color: #E2E8F0;
+      font-size: 0.95rem;
+    }
+
+    li {
+      margin-bottom: 0.5rem;
+    }
+
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85em;
+      background: #181824;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      color: #F472B6;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* Custom Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 2rem 0;
+      font-size: 0.9rem;
+      background: var(--bg-component);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border-subtle);
+    }
+
+    th, td {
+      padding: 0.85rem 1.25rem;
+      text-align: left;
+    }
+
+    th {
+      background: rgba(255, 255, 255, 0.02);
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      color: white;
+      border-bottom: 1px solid var(--border-subtle);
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+
+    td {
+      border-bottom: 1px solid var(--border-subtle);
+      color: #CBD5E1;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: rgba(139, 92, 246, 0.02);
+      color: white;
+    }
+
+    /* Custom Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      font-family: 'Outfit', sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .badge-get { background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); color: #60A5FA; }
+    .badge-post { background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #34D399; }
+    .badge-put { background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); color: #FBBF24; }
+    .badge-delete { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #F87171; }
+    .badge-patch { background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); color: #C084FC; }
+
+    /* Code Block Containers */
+    .code-wrapper {
+      margin: 2rem 0;
+      border-radius: 12px;
+      border: 1px solid var(--border-subtle);
+      background: #0D0D15;
+      overflow: hidden;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.25);
+    }
+
+    .code-header {
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 0.6rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .code-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .copy-btn {
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      border-radius: 4px;
+      padding: 0.25rem 0.5rem;
+      font-size: 0.75rem;
+      font-family: 'Outfit', sans-serif;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .copy-btn:hover {
+      color: white;
+      border-color: var(--accent-primary);
+      background: rgba(139, 92, 246, 0.1);
+    }
+
+    .code-wrapper pre {
+      margin: 0 !important;
+      padding: 1.25rem !important;
+      background: transparent !important;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      overflow-x: auto;
+    }
+
+    .code-wrapper code {
+      background: transparent !important;
+      border: none !important;
+      padding: 0 !important;
+      font-family: inherit !important;
+      color: inherit !important;
+      font-size: inherit !important;
+    }
+
+    /* Diagram Canvas */
+    .diagram-card {
+      background: #09090F;
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin: 2rem 0;
+      overflow-x: auto;
+    }
+
+    .diagram-card pre {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      line-height: 1.35;
+      color: #A78BFA;
+    }
+
+    /* Alert / Callout Boxes */
+    .alert-box {
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      margin: 2rem 0;
+      display: flex;
+      gap: 1rem;
+      font-size: 0.9rem;
+    }
+
+    .alert-box.info {
+      background: rgba(139, 92, 246, 0.05);
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      color: #C084FC;
+    }
+
+    .alert-box.warning {
+      background: var(--warning-glow);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      color: #FBBF24;
+    }
+
+    .alert-box.danger {
+      background: var(--danger-glow);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      color: #F87171;
+    }
+
+    .alert-box.success {
+      background: var(--accent-secondary-glow);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: #34D399;
+    }
+
+    .alert-icon {
+      font-size: 1.25rem;
+      flex-shrink: 0;
+      margin-top: -0.1rem;
+    }
+
+    .alert-content p:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Interactive Section Components */
+    /* Loyalty Tiers Grid */
+    .tiers-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+      margin: 2rem 0;
+    }
+
+    .tier-card {
+      background: var(--bg-component);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1.5rem;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .tier-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--accent-primary);
+      box-shadow: 0 10px 20px rgba(139, 92, 246, 0.1);
+    }
+
+    .tier-card.silver::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, #94A3B8, #CBD5E1);
+    }
+
+    .tier-card.gold::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: linear-gradient(90deg, #F59E0B, #D97706);
+    }
+
+    .tier-name {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 0.5rem;
+    }
+
+    .tier-discount {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.25rem;
+      font-weight: 800;
+      color: var(--accent-primary);
+      margin-bottom: 0.75rem;
+      line-height: 1;
+    }
+
+    .tier-card.gold .tier-discount {
+      color: var(--warning);
+    }
+
+    .tier-detail {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 0.75rem;
+      margin-top: 0.75rem;
+    }
+
+    /* Financial Flow Diagram Card */
+    .financial-flow-box {
+      background: #09090F;
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin: 2rem 0;
+    }
+
+    .flow-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+      font-size: 0.9rem;
+    }
+
+    .flow-line:last-child {
+      border-bottom: none;
+    }
+
+    .flow-label {
+      color: var(--text-muted);
+    }
+
+    .flow-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+    }
+
+    .flow-value.negative { color: var(--danger); }
+    .flow-value.positive { color: var(--accent-secondary); }
+
+    /* Dashboard Metrics Demo Panel */
+    .metrics-demo-card {
+      background: var(--bg-component);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin: 2rem 0;
+    }
+
+    .demo-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 1rem;
+    }
+
+    .demo-title {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      color: white;
+    }
+
+    .demo-btn {
+      background: var(--accent-primary);
+      border: none;
+      color: white;
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .demo-btn:hover {
+      background: #7C3AED;
+      box-shadow: 0 0 10px rgba(139, 92, 246, 0.4);
+    }
+
+    .metrics-demo-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    .metric-demo-box {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 1rem;
+      transition: all 0.3s ease;
+    }
+
+    .metric-demo-box.pulse {
+      animation: metricFlash 0.8s ease-out;
+      border-color: var(--accent-primary);
+    }
+
+    .metric-demo-box.shimmer {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .metric-demo-box.shimmer::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent);
+      animation: shimmer 1.5s infinite;
+      transform: translateX(-100%);
+    }
+
+    .metric-demo-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 0.25rem;
+    }
+
+    .metric-demo-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: white;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    @keyframes metricFlash {
+      0% { background: rgba(139, 92, 246, 0.3); }
+      50% { background: rgba(139, 92, 246, 0.1); }
+      100% { background: rgba(255, 255, 255, 0.02); }
+    }
+
+    @keyframes shimmer {
+      100% { transform: translateX(100%); }
+    }
+
+    /* Footer branding */
+    .docs-footer {
+      border-top: 1px solid var(--border-subtle);
+      padding: 3rem 0;
+      margin-top: 6rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* Print styling rules */
+    @media print {
+      .sidebar, .top-bar {
+        display: none;
+      }
+      .main-wrapper {
+        margin-left: 0;
+      }
+      .content-area {
+        max-width: 100%;
+        padding: 0;
+      }
+      body {
+        background: white;
+        color: black;
+      }
+      h2, h3, h4, .chapter-title, .hero-title {
+        color: black;
+      }
+      pre, code, table, .hero-card, .tier-card {
+        border-color: #DDD;
+        background: #F9F9F9;
+        color: black;
+      }
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .sidebar {
+        display: none; /* Add menu button for tablet/mobile */
+      }
+      .main-wrapper {
+        margin-left: 0;
+      }
+      .top-bar {
+        padding: 0 1.5rem;
+      }
+      .content-area {
+        padding: 1.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- LEFT SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo">BB</div>
+      <div class="brand-text">BazarBoost</div>
+      <div class="brand-version">v2.1.0</div>
+    </div>
+    
+    <!-- Search Box -->
+    <div class="search-box">
+      <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+      <input type="text" class="search-input" id="sidebar-search" placeholder="Search architecture...">
+    </div>
+    
+    <!-- Nav Tree links -->
+    <nav class="nav-links">
+      <div class="nav-group">
+        <div class="nav-group-title">Platform Manual</div>
+        
+        <a href="#ch1" class="nav-item active" data-target="ch1">
+          <span class="nav-item-num">01</span> Topology & Paradigm
+        </a>
+        <a href="#ch2" class="nav-item" data-target="ch2">
+          <span class="nav-item-num">02</span> Loyalty Discount Engine
+        </a>
+        <a href="#ch3" class="nav-item" data-target="ch3">
+          <span class="nav-item-num">03</span> Micro-Financing Ledger
+        </a>
+        <a href="#ch4" class="nav-item" data-target="ch4">
+          <span class="nav-item-num">04</span> Live Negotiation Chat
+        </a>
+        <a href="#ch5" class="nav-item" data-target="ch5">
+          <span class="nav-item-num">05</span> Logistics & Operations
+        </a>
+        <a href="#ch6" class="nav-item" data-target="ch6">
+          <span class="nav-item-num">06</span> Live Dashboard Redesign
+        </a>
+      </div>
+      
+      <div class="nav-group">
+        <div class="nav-group-title">Appendices</div>
+        
+        <a href="#app-a" class="nav-item" data-target="app-a">
+          <span class="nav-item-num appendix">A</span> API Endpoint Catalog
+        </a>
+        <a href="#app-b" class="nav-item" data-target="app-b">
+          <span class="nav-item-num appendix">B</span> Environment Config
+        </a>
+        <a href="#app-c" class="nav-item" data-target="app-c">
+          <span class="nav-item-num appendix">C</span> DB Index Registry
+        </a>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- MAIN WRAPPER -->
+  <main class="main-wrapper">
+    
+    <!-- STICKY TOP BAR -->
+    <header class="top-bar">
+      <div class="top-bar-meta">
+        <div class="meta-item">
+          <span class="meta-badge"></span>
+          <span>Core System Active</span>
+        </div>
+        <div class="meta-item">
+          <span>Replica Set: <strong>ON</strong></span>
+        </div>
+        <div class="meta-item">
+          <span>Redis TTL: <strong>7200s</strong></span>
+        </div>
+      </div>
+      <div class="top-bar-meta">
+        <div class="meta-item">
+          <span>Target: <strong>Production Reference</strong></span>
+        </div>
+      </div>
+    </header>
+
+    <!-- CONTENT BODY -->
+    <div class="content-area">
+      
+      <!-- HERO COVER SECTION -->
+      <section class="hero-card">
+        <div class="hero-pretitle">BazarBoost Platform Engineering Manual</div>
+        <h1 class="hero-title">Enterprise-Scale Multi-Vendor Negotiation & Micro-Financing Ecosystem</h1>
+        <p class="hero-subtitle">Comprehensive Technical Specification, Operational Architecture Guide & System API Manifest</p>
+        
+        <div class="hero-meta-grid">
+          <div class="hero-meta-block">
+            <h4>Version Control</h4>
+            <p>2.1.0 (June 2026 Release)</p>
+          </div>
+          <div class="hero-meta-block">
+            <h4>Platform Authors</h4>
+            <p>Platform Engineering Division</p>
+          </div>
+          <div class="hero-meta-block">
+            <h4>Document Classification</h4>
+            <p>Internal Engineering Reference</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- CHAPTER 1 -->
+      <div class="chapter-anchor" id="ch1"></div>
+      <section class="chapter-section">
+        <div class="chapter-badge">Chapter 01</div>
+        <h1 class="chapter-title">Platform Overview & Core Architectural Paradigm</h1>
+        
+        <h2>1.1 Executive System Topology</h2>
+        <p>BazarBoost is a production-deployed, enterprise-scale multi-vendor e-commerce ecosystem built on a tightly integrated full-stack JavaScript monorepo. The platform enables independent vendors to open storefronts, list products, engage in real-time price negotiations with shoppers, and access micro-financing capital instruments — all within a unified, multi-tenant-aware infrastructure.</p>
+        
+        <p>The system is designed around three foundational architectural principles:</p>
+        <ol>
+          <li><strong>Tenant Isolation by Design</strong> — Every database query, socket room, and API response is scoped to the authenticated user's <code>storeId</code> or <code>userId</code>. Cross-tenant data leakage is structurally impossible within the query layer.</li>
+          <li><strong>Event-Driven State Propagation</strong> — All critical financial state transitions (order completions, loan disbursements, discount activations) are processed through atomic, transaction-wrapped database operations and broadcast via Socket.io room emissions.</li>
+          <li><strong>Decoupled Service Boundaries</strong> — The frontend (Next.js), the API layer (Express), the real-time engine (Socket.io), and the background job processor (BullMQ) operate as logically separate services with well-defined, typed interfaces.</li>
+        </ol>
+
+        <h3>1.1.1 System Boundary Map</h3>
+        <div class="diagram-card">
+          <pre>
+┌─────────────────────────────────────────────────────────────────────┐
+│                        CLIENT TIER                                  │
+│                                                                     │
+│   ┌─────────────────────┐     ┌────────────────────────────────┐   │
+│   │  Next.js 14+        │     │  Socket.io-Client              │   │
+│   │  (App Router)       │◄───►│  (WebSocket / Polling)         │   │
+│   │  Port :3000         │     │  Auto-reconnect: ON            │   │
+│   └─────────┬───────────┘     └────────────────────────────────┘   │
+│             │ HTTP / REST                                           │
+└─────────────┼───────────────────────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                        API GATEWAY TIER                             │
+│                                                                     │
+│   ┌─────────────────────────────────────────────────────────────┐   │
+│   │  Node.js Express Server · Port :5000                        │   │
+│   │                                                             │   │
+│   │  /api/auth         /api/orders       /api/loyalty           │   │
+│   │  /api/products     /api/stores       /api/negotiation       │   │
+│   │  /api/wallet       /api/admin        /api/notifications     │   │
+│   │  /api/loans        /api/coupons      /api/ads               │   │
+│   └──────────────────────────┬──────────────────────────────────┘   │
+│                              │                                      │
+│   ┌──────────────────────────▼──────────────────────────────────┐   │
+│   │  Socket.io Server (attached to HTTP server)                 │   │
+│   │  Room Strategy: user:{id} | room:{storeId}_{shopperId}      │   │
+│   │  vendor_dashboard:{vendorId}                                │   │
+│   └─────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                        DATA PERSISTENCE TIER                        │
+│                                                                     │
+│   ┌───────────────────┐   ┌──────────────────┐  ┌───────────────┐  │
+│   │  MongoDB Atlas     │   │  Redis Cache     │  │  BullMQ       │  │
+│   │  (Primary Store)   │   │  (Session TTL)   │  │  Job Queues   │  │
+│   │  Replica Set: ON   │   │  TTL: 7200s      │  │  Workers: 3   │  │
+│   └───────────────────┘   └──────────────────┘  └───────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘</pre>
+        </div>
+
+        <h2>1.2 Full System Technology Stack</h2>
+        <h3>1.2.1 Frontend Layer</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Component</th>
+              <th>Technology</th>
+              <th>Version</th>
+              <th>Rationale</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Framework</td>
+              <td>Next.js</td>
+              <td>14+ (App Router)</td>
+              <td>SSR, RSC, file-system routing, edge-ready</td>
+            </tr>
+            <tr>
+              <td>Language</td>
+              <td>TypeScript</td>
+              <td>5.x</td>
+              <td>Type-safe component contracts</td>
+            </tr>
+            <tr>
+              <td>Styling</td>
+              <td>Tailwind CSS + Custom CSS Variables</td>
+              <td>3.x</td>
+              <td>Utility-first with design-token overrides</td>
+            </tr>
+            <tr>
+              <td>State Mgmt</td>
+              <td>React <code>useState</code> / <code>useContext</code></td>
+              <td>18.x</td>
+              <td>Lightweight; no Redux overhead</td>
+            </tr>
+            <tr>
+              <td>Real-Time Client</td>
+              <td><code>socket.io-client</code></td>
+              <td>4.x</td>
+              <td>Persistent WS with auto-fallback</td>
+            </tr>
+            <tr>
+              <td>HTTP Client</td>
+              <td>Native <code>fetch</code> + custom <code>apiRequest()</code></td>
+              <td>—</td>
+              <td>Centralized auth header injection</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="code-wrapper">
+          <div class="code-header">
+            <span class="code-title">Design Token System (CSS Variables)</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code class="language-css">:root {
+  --bg-primary:       #07070A;   /* Main canvas background        */
+  --bg-component:     #111119;   /* Cards, modals, sidebars       */
+  --border-subtle:    #1A1A24;   /* Default component borders     */
+  --border-accent:    rgba(139, 92, 246, 0.25); /* Focused accent borders */
+  --accent-primary:   #8B5CF6;   /* Purple — primary CTA          */
+  --accent-secondary: #10B981;   /* Emerald — success / positive  */
+  --danger:           #EF4444;   /* Red alert / destructive       */
+  --warning:          #F59E0B;   /* Amber — caution states        */
+  --text-primary:     #F1F5F9;   /* Body copy                     */
+  --text-muted:       #64748B;   /* Secondary labels              */
+}</code></pre>
+        </div>
+
+        <h3>1.2.2 Backend Layer</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Component</th>
+              <th>Technology</th>
+              <th>Version</th>
+              <th>Role</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Runtime</td>
+              <td>Node.js</td>
+              <td>22.x</td>
+              <td>Async I/O server runtime</td>
+            </tr>
+            <tr>
+              <td>HTTP Framework</td>
+              <td>Express.js</td>
+              <td>4.x</td>
+              <td>REST API, middleware pipeline</td>
+            </tr>
+            <tr>
+              <td>ODM</td>
+              <td>Mongoose</td>
+              <td>8.4+</td>
+              <td>MongoDB schema definitions & validation</td>
+            </tr>
+            <tr>
+              <td>Authentication</td>
+              <td>JSON Web Tokens (JWT)</td>
+              <td>9.x</td>
+              <td>Stateless auth; admin sessions DB-tracked</td>
+            </tr>
+            <tr>
+              <td>Real-Time</td>
+              <td>Socket.io</td>
+              <td>4.7+</td>
+              <td>Bidirectional WS rooms</td>
+            </tr>
+            <tr>
+              <td>Image AI</td>
+              <td><code>@xenova/transformers</code></td>
+              <td>2.17+</td>
+              <td>On-device CLIP embeddings for dispute AI</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>1.2.3 Database Architecture</h3>
+        <div class="code-wrapper">
+          <div class="code-header">
+            <span class="code-title">File: src/config/db.js</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code class="language-javascript">import mongoose from 'mongoose';
+
+const connectDB = async () => {
+  const conn = await mongoose.connect(process.env.MONGO_URI, {
+    dbName: 'bazarboost',
+  });
+  console.log(`[DB] MongoDB connected: ${conn.connection.host}`);
+};</code></pre>
+        </div>
+
+        <p><strong>Collection Inventory (22 Models):</strong></p>
+        <table>
+          <thead>
+            <tr>
+              <th>Collection</th>
+              <th>Model File</th>
+              <th>Primary Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>users</code></td>
+              <td><code>User.js</code></td>
+              <td>Shopper, Vendor, Admin, StoreAdmin profiles</td>
+            </tr>
+            <tr>
+              <td><code>stores</code></td>
+              <td><code>Store.js</code></td>
+              <td>Vendor storefronts, wallet, debt state, theme</td>
+            </tr>
+            <tr>
+              <td><code>products</code></td>
+              <td><code>Product.js</code></td>
+              <td>Catalog listings with multi-image gallery & stock</td>
+            </tr>
+            <tr>
+              <td><code>orders</code></td>
+              <td><code>Order.js</code></td>
+              <td>Transaction records with commission splits & loyalty</td>
+            </tr>
+            <tr>
+              <td><code>chatsessions</code></td>
+              <td><code>ChatSession.js</code></td>
+              <td>Negotiation room metadata & operator assignment</td>
+            </tr>
+            <tr>
+              <td><code>messages</code></td>
+              <td><code>Message.js</code></td>
+              <td>Chat payloads with price offer negotiation fields</td>
+            </tr>
+            <tr>
+              <td><code>loyaltyledgercaches</code></td>
+              <td><code>LoyaltyLedgerCache.js</code></td>
+              <td>Month-bounded spend accumulators</td>
+            </tr>
+            <tr>
+              <td><code>loyaltyconfigs</code></td>
+              <td><code>LoyaltyConfig.js</code></td>
+              <td>Platform-wide tier thresholds (singleton)</td>
+            </tr>
+            <tr>
+              <td><code>vendorloans</code></td>
+              <td><code>VendorLoan.js</code></td>
+              <td>Micro-financing ledger entries</td>
+            </tr>
+            <tr>
+              <td><code>broadcastjobs</code></td>
+              <td><code>BroadcastJob.js</code></td>
+              <td>Admin omni-channel dispatch queue</td>
+            </tr>
+            <tr>
+              <td><code>notifications</code></td>
+              <td><code>Notification.js</code></td>
+              <td>In-panel alert payloads</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>1.2.4 Server Entry Point Architecture</h3>
+        <div class="code-wrapper">
+          <div class="code-header">
+            <span class="code-title">File: src/server.js</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code class="language-javascript">import express from 'express';
+import http    from 'http';
+import { Server } from 'socket.io';
+import cors    from 'cors';
+import connectDB from './config/db.js';
+import socketHandler from './config/socketHandler.js';
+
+// Route imports
+import authRoutes        from './routes/auth.js';
+import productRoutes     from './routes/products.js';
+import orderRoutes       from './routes/orders.js';
+import storeRoutes       from './routes/stores.js';
+import negotiationRoutes from './routes/negotiation.js';
+import loyaltyRoutes     from './routes/loyalty.js';
+import walletRoutes      from './routes/wallet.js';
+import adminRoutes       from './routes/admin.js';
+import loanRoutes        from './routes/loans.js';
+
+const app    = express();
+const server = http.createServer(app);
+const io     = new Server(server, {
+  cors: { origin: process.env.FRONTEND_URL, methods: ['GET', 'POST'] }
+});
+
+global.io = io;
+
+connectDB();
+
+app.use(cors({ origin: process.env.FRONTEND_URL, credentials: true }));
+app.use(express.json({ limit: '50mb' }));
+
+app.use('/api/auth',         authRoutes);
+app.use('/api/products',     productRoutes);
+app.use('/api/orders',       orderRoutes);
+app.use('/api/stores',       storeRoutes);
+app.use('/api/negotiation',  negotiationRoutes);
+app.use('/api/negotiations', negotiationRoutes);  
+app.use('/api/loyalty',      loyaltyRoutes);
+app.use('/api/wallet',       walletRoutes);
+app.use('/api/admin',        adminRoutes);
+app.use('/api/loans',        loanRoutes);
+
+socketHandler(io);
+server.listen(process.env.PORT || 5000);</code></pre>
+        </div>
+
+        <h3>1.2.5 Middleware Pipeline</h3>
+        <div class="code-wrapper">
+          <div class="code-header">
+            <span class="code-title">File: src/middleware/auth.js</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code class="language-javascript">export const protect = async (req, res, next) => {
+  // Stage 1 — Token Extraction & Verification
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ message: 'No token provided' });
+
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  const user    = await User.findById(decoded.id).select('-password');
+  req.user      = user;
+
+  // Stage 2 — Admin Session IP Lock Guard
+  if (req.user.role === 'admin') {
+    const ipAddress = req.headers['x-forwarded-for'] 
+                   || req.socket.remoteAddress || '';
+    const session = await AdminSession.findOne({
+      adminId: req.user._id, token
+    });
+    if (!session || session.ipAddress !== ipAddress) {
+      return res.status(401).json({ message: 'Session invalid or expired' });
+    }
+  }
+
+  // Stage 3 — Account Suspension Enforcement
+  if (req.user.status !== 'active') {
+    return res.status(401).json({ message: 'Account suspended' });
+  }
+
+  next();
+};</code></pre>
+        </div>
+
+        <h3>1.2.6 Socket.io Room Strategy</h3>
+        <div class="code-wrapper">
+          <div class="code-header">
+            <span class="code-title">File: src/config/socketHandler.js</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code class="language-javascript">io.use(async (socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) return next(new Error('Authentication error'));
+  
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  const user    = await User.findById(decoded.id).select('-password');
+  socket.user   = user;
+  next();
+});
+
+io.on('connection', (socket) => {
+  const user = socket.user;
+  socket.join(`user:${user._id}`);
+});</code></pre>
+        </div>
+      </section>
+
+      <!-- CHAPTER 2 -->
+      <div class="chapter-anchor" id="ch2"></div>
+      <section class="chapter-section">
+        <div class="chapter-badge">Chapter 02</div>
+        <h1 class="chapter-title">Calendar-Month Bounded Loyalty Discount Engine</h1>
+        
+        <h2>2.1 System Overview</h2>
+        <p>The BazarBoost Loyalty Discount Engine implements a rolling, calendar-month-bounded spend accumulation model that dynamically grants shopper discount tiers across all vendor storefronts. The engine is fully decoupled from individual vendor accounting — merchants always receive their full contracted payout, while the platform absorbs the discount subsidy from its commission pool.</p>
+
+        <h3>2.1.1 Engine Architecture Flow</h3>
+        <div class="diagram-card">
+          <pre>
+SHOPPER CHECKOUT PIPELINE
+│
+├─ [1] Cart Subtotal Computed
+│       ↓
+├─ [2] verify_monthly_loyalty_tier (Middleware)
+│       ├── READ  LoyaltyLedgerCache { userId, monthKey }
+│       ├── READ  LoyaltyConfig      (silverThreshold, goldThreshold)
+│       └── RETURN tier ∈ { 'Standard', 'Silver', 'Gold' }
+│               ↓
+├─ [3] Local Vendor Coupon Applied First
+│       (if coupon code present & valid)
+│               ↓
+├─ [4] Platform Tier Discount Stacked Second
+│       ├── Silver → -5%  of post-coupon subtotal
+│       └── Gold   → -10% of post-coupon subtotal
+│               ↓
+├─ [5] Order Created in DB
+│       ├── platformCommission  = originalSubtotal × commissionRate
+│       ├── loyaltyDiscount     = tierDiscountAmount
+│       └── loyaltyTier         = 'Silver' | 'Gold'
+│               ↓
+├─ [6] Ledger Updated
+│       └── LoyaltyLedgerCache.accumulatedSpend += orderTotal
+│               ↓
+└─ [7] Vendor Payout = totalAmount - platformCommission
+        (loyaltyDiscount absorbed by platform, NOT deducted from vendor)</pre>
+        </div>
+
+        <h2>2.2 Rolling Ledger Logic</h2>
+        <h3>2.2.1 Month Key Generation</h3>
+        <p>The loyalty ledger uses a composite month key to namespace each shopper's accumulator to a specific calendar month:</p>
+        <div class="code-wrapper">
+          <div class="code-header">
+            <span class="code-title">Composite Month Key Logic</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code class="language-javascript">const getMonthKey = () => {
+  const now = new Date();
+  const yyyy = now.getUTCFullYear();
+  const mm   = String(now.getUTCMonth() + 1).padStart(2, '0');
+  return `${yyyy}-${mm}`;
+};</code></pre>
+        </div>
+
+        <h3>2.2.2 LoyaltyLedgerCache Schema</h3>
+        <div class="code-wrapper">
+          <div class="code-header">
+            <span class="code-title">File: src/models/LoyaltyLedgerCache.js</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code class="language-javascript">const loyaltyLedgerCacheSchema = new mongoose.Schema({
+  userId: {
+    type:     mongoose.Schema.Types.ObjectId,
+    ref:      'User',
+    required: true,
+  },
+  monthKey: {
+    type:     String,        // Format: "YYYY-MM" (e.g. "2026-06")
+    required: true,
+  },
+  accumulatedSpend: {
+    type:     Number,
+    required: true,
+    default:  0,             // PKR — cumulative cross-vendor spend
+    min:      0,
+  },
+  claimsCount: {
+    type:     Number,
+    required: true,
+    default:  0,
+    min:      0,
+  },
+}, { timestamps: true });
+
+loyaltyLedgerCacheSchema.index({ userId: 1, monthKey: 1 }, { unique: true });</code></pre>
+        </div>
+
+        <h2>2.3 Tier Allocation Logic Gates</h2>
+        <div class="tiers-grid">
+          <div class="tier-card">
+            <div class="tier-name">Standard Tier</div>
+            <div class="tier-discount">0%</div>
+            <p>Baseline checkout. Applied when accumulated spend is less than PKR 10,000.</p>
+            <div class="tier-detail">Threshold: &lt; 10k PKR</div>
+          </div>
+          <div class="tier-card silver">
+            <div class="tier-name">Silver Loyalist</div>
+            <div class="tier-discount">-5%</div>
+            <p>Stackable tier discount applied post-coupon to all catalog checkouts.</p>
+            <div class="tier-detail">Threshold: 10,000+ PKR</div>
+          </div>
+          <div class="tier-card gold">
+            <div class="tier-name">Gold Loyalist</div>
+            <div class="tier-discount">-10%</div>
+            <p>Maximum discount tier. Bypasses merchant rules, fully subsidized by portal.</p>
+            <div class="tier-detail">Threshold: 20,000+ PKR</div>
+          </div>
+        </div>
+
+        <h2>2.4 Ledger Escrow Reconciliation</h2>
+        <p>The platform enforces an absolute separation between platform markdowns and vendor payouts. Platform net commissions are reduced to fund customer discount allocations:</p>
+        <div class="financial-flow-box">
+          <div class="flow-line">
+            <span class="flow-label">Original Product Listing Price</span>
+            <span class="flow-value">PKR 5,000.00</span>
+          </div>
+          <div class="flow-line">
+            <span class="flow-label">Gold Tier Markdown (-10%)</span>
+            <span class="flow-value negative">-PKR 500.00</span>
+          </div>
+          <div class="flow-line">
+            <span class="flow-label">Customer Paid Checkout Amount</span>
+            <span class="flow-value">PKR 4,500.00</span>
+          </div>
+          <div class="flow-line">
+            <span class="flow-label">Base Take Commission (5%)</span>
+            <span class="flow-value negative">-PKR 250.00</span>
+          </div>
+          <div class="flow-line">
+            <span class="flow-label">Vendor Final Settlement Payout</span>
+            <span class="flow-value positive">PKR 4,750.00</span>
+          </div>
+          <div class="flow-line">
+            <span class="flow-label">Platform Net Deficit Payout Absorption</span>
+            <span class="flow-value negative">-PKR 250.00</span>
+          </div>
+        </div>
+
+        <div class="code-wrapper">
+          <div class="code-header">
+            <span class="code-title">Atomic Checkout ledger update in src/routes/orders.js</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code class="language-javascript">const order = await Order.create({
+  shopperId:          req.user._id,
+  storeId,
+  totalAmount:        finalTotal,
+  platformCommission: originalSubtotal * COMMISSION_RATE,
+  loyaltyDiscount,
+  loyaltyTier:        tier,
+});
+
+await LoyaltyLedgerCache.findOneAndUpdate(
+  { userId: req.user._id, monthKey: getMonthKey() },
+  { $inc: { accumulatedSpend: finalTotal } },
+  { new: true, upsert: true }
+);</code></pre>
+        </div>
+      </section>
+
+      <!-- CHAPTER 3 -->
+      <div class="chapter-anchor" id="ch3"></div>
+      <section class="chapter-section">
+        <div class="chapter-badge">Chapter 03</div>
+        <h1 class="chapter-title">Escrow-Locked Inventory Micro-Financing Ledger</h1>
+        
+        <h2>3.1 System Overview</h2>
+        <p>The BazarBoost Micro-Financing Ledger provides capital access instruments for vendors who need operational liquidity. Vendors can apply for short-term escrow loans disbursed directly to their store wallet. Repayment is automated through a non-optional sweep mechanism that intercepts a percentage slice from every incoming order payout until the loan balance reaches zero.</p>
+
+        <h2>3.2 Schema Contracts</h2>
+        <div class="code-wrapper">
+          <div class="code-header">
+            <span class="code-title">File: src/models/VendorLoan.js</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code class="language-javascript">const vendorLoanSchema = new mongoose.Schema({
+  storeId:         { type: mongoose.Schema.Types.ObjectId, ref: 'Store', required: true },
+  vendorId:        { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  amount:          { type: Number, required: true }, // Principal PKR
+  interestRate:    { type: Number, default: 0.05 },  // 5% flat fee
+  repaymentAmount: { type: Number, required: true }, // Principal * 1.05
+  status: {
+    type: String,
+    enum: ['approved', 'repaid', 'defaulted'],
+    default: 'approved'
+  },
+  repaidAt:        { type: Date, default: null }
+}, { timestamps: true });</code></pre>
+        </div>
+
+        <div class="alert-box warning">
+          <span class="alert-icon">⚠️</span>
+          <div class="alert-content">
+            <p><strong>Enum Lock Rule:</strong> All transaction records inserted into a store's wallet must validate against Mongoose schema enums: <code>['topup', 'deposit', 'withdrawal', 'loan_disbursement', 'loan_repayment']</code>. Any invalid state strings will reject instantly.</p>
+          </div>
+        </div>
+
+        <h2>3.3 Chronological Amortization Milestones</h2>
+        <div class="diagram-card">
+          <pre>
+LOAN LIFECYCLE TIMELINE (60-Day Window)
+══════════════════════════════════════════════════════════════════════
+
+Day 0  ─────────────────────────────────────────────────────── Day 60
+  │                          │                                   │
+  │                        Day 30                              Day 45
+  │                    (Milestone A)                       (Milestone B)
+  │                                                              │
+  ▼                          ▼                    ▼             ▼
+[DISBURSEMENT]         [HALF-DEBT         [CRITICAL        [MATURITY
+ Loan amount            CHECKPOINT]        WARNING]         DUE DATE]
+ credited to            Amber banner       Dashboard        Default
+ vendor wallet          in dashboard       escalation       trigger
+                        header             + auto-sweep     Red Zone
+                                           confirmation     Enforcement
+
+  STATUS: 'approved'                                  STATUS: 'defaulted'
+                                              ↑
+                                        If fully repaid before Day 60:
+                                        STATUS: 'repaid'
+                                        repaidAt: Date.now()</pre>
+        </div>
+
+        <h2>3.4 Automated Repayment Hook</h2>
+        <div class="code-wrapper">
+          <div class="code-header">
+            <span class="code-title">File: src/routes/orders.js (Interception Hook)</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code class="language-javascript">const activeLoan = await VendorLoan.findOne({
+  storeId,
+  status: 'approved',
+}).sort({ createdAt: 1 });
+
+if (activeLoan) {
+  const vendorGross = order.totalAmount - order.platformCommission;
+  const repaymentSlice = Math.min(vendorGross, activeLoan.repaymentAmount);
+  const netPayout = vendorGross - repaymentSlice;
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const isFullyRepaid = repaymentSlice >= activeLoan.repaymentAmount;
+    await VendorLoan.findByIdAndUpdate(activeLoan._id, 
+      isFullyRepaid ? { status: 'repaid', repaidAt: new Date() }
+                    : { $inc: { repaymentAmount: -repaymentSlice } },
+      { session }
+    );
+    await Store.findByIdAndUpdate(storeId, {
+      $inc: { 'wallet.balancePKR': netPayout },
+      $push: { 'wallet.transactions': [
+        { type: 'deposit', amount: vendorGross, reference: order._id },
+        { type: 'loan_repayment', amount: -repaymentSlice, reference: activeLoan._id }
+      ]}
+    }, { session });
+    await session.commitTransaction();
+  } catch (err) {
+    await session.abortTransaction();
+    throw err;
+  }
+}</code></pre>
+        </div>
+      </section>
+
+      <!-- CHAPTER 4 -->
+      <div class="chapter-anchor" id="ch4"></div>
+      <section class="chapter-section">
+        <div class="chapter-badge">Chapter 04</div>
+        <h1 class="chapter-title">Bi-Directional Negotiation Chat Interaction Rig</h1>
+        
+        <h2>4.1 System Overview</h2>
+        <p>The BazarBoost Negotiation Engine provides a real-time, product-anchored chat interface that enables shoppers and vendors to conduct live price negotiations. The system maintains room persistence across page reloads, supports structured counter-offer action cards alongside free-text messaging, and enforces server-side room resolution to prevent unauthorized room access.</p>
+
+        <h2>4.2 Session Management</h2>
+        <div class="code-wrapper">
+          <div class="code-header">
+            <span class="code-title">POST /api/negotiations/resolve-session</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code class="language-javascript">router.post('/resolve-session', protect, async (req, res) => {
+  const { customerId, vendorId } = req.body;
+  const vendor = await User.findById(vendorId).select('storeId');
+  const storeId = vendor?.storeId;
+  const roomId = `room:${storeId}_${customerId}`;
+
+  const session = await ChatSession.findOneAndUpdate(
+    { storeId, shopperId: customerId },
+    { storeId, shopperId: customerId, isActive: true },
+    { upsert: true, new: true }
+  );
+  
+  const messages = await Message.find({ sessionId: session._id }).sort({ createdAt: 1 });
+  return res.json({ success: true, session, roomId, messages });
+});</code></pre>
+        </div>
+
+        <div class="alert-box info">
+          <span class="alert-icon">💡</span>
+          <div class="alert-content">
+            <p><strong>Stale Closure Guard (React Pattern):</strong> When appending socket payloads to active states, always leverage dynamic set callbacks to prevent visual array stale dropouts:</p>
+            <pre><code class="language-javascript">// Functional updater guarantees correct state
+socket.on('receive_message', (msg) => {
+  setMessages(prev => [...prev, msg]);
+});</code></pre>
+          </div>
+        </div>
+
+        <h2>4.3 Socket Payload Schemas</h2>
+        <div class="code-wrapper">
+          <div class="code-header">
+            <span class="code-title">File: src/models/Message.js</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code class="language-javascript">const messageSchema = new mongoose.Schema({
+  sessionId:    { type: mongoose.Schema.Types.ObjectId, ref: 'ChatSession', required: true },
+  senderId:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  text:         { type: String, required: true },
+  priceOffer:   { type: Number, default: null }, // Proposed counter-offer value
+  offerStatus: {
+    type: String,
+    enum: ['none', 'pending', 'accepted', 'rejected'],
+    default: 'none'
+  }
+}, { timestamps: true });</code></pre>
+        </div>
+      </section>
+
+      <!-- CHAPTER 5 -->
+      <div class="chapter-anchor" id="ch5"></div>
+      <section class="chapter-section">
+        <div class="chapter-badge">Chapter 05</div>
+        <h1 class="chapter-title">High-Performance Logistics & Automated Operational Engine</h1>
+        
+        <h2>5.1 Dark Hub Consolidation</h2>
+        <p>The Dark Hub Consolidation Engine solves the multi-vendor shipping problem: when a shopper purchases items from three different vendors in a single cart, the system intercepts all three parcels at a centralized regional depot, consolidates them into a single shipping box, and dispatches them under one tracking identifier.</p>
+
+        <div class="diagram-card">
+          <pre>
+MULTI-VENDOR PACKAGING WORKFLOW
+┌────────────────┐  ┌────────────────┐  ┌────────────────┐
+│ Vendor A Box   │  │ Vendor B Box   │  │ Vendor C Box   │
+└───────┬────────┘  └───────┬────────┘  └───────┬────────┘
+        │                   │                   │
+        ▼                   ▼                   ▼
+ └───────────────── Regional Depot ─────────────────┘
+                        │
+                        │ (Scan & Consolidate Crate)
+                        ▼
+            ┌───────────────────────┐
+            │   Unified Crate Box   │ -> Handed to courier with single
+            │   [Tracking TCS-9012] │    tracking barcode.
+            └───────────────────────┘</pre>
+        </div>
+
+        <h2>5.2 AI Dispute Arbitrator Pipeline</h2>
+        <p>Using a lightweight transformer model (<code>CLIP-ViT-B-32</code>) loaded inside a background worker, BazarBoost scores dispute screenshots against the product catalog index to automate returns validation:</p>
+
+        <div class="code-wrapper">
+          <div class="code-header">
+            <span class="code-title">File: src/services/disputeAI.js</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code class="language-javascript">import { pipeline } from '@xenova/transformers';
+
+export const computeDisputeSimilarity = async (evidenceImagePath, catalogImageUrl) => {
+  const encoder = await pipeline('feature-extraction', 'Xenova/clip-vit-base-patch32');
+
+  const [evidenceEmbedding, catalogEmbedding] = await Promise.all([
+    encoder(evidenceImagePath, { pooling: 'mean', normalize: true }),
+    encoder(catalogImageUrl,   { pooling: 'mean', normalize: true }),
+  ]);
+
+  const dotProduct = evidenceEmbedding.data.reduce(
+    (sum, val, idx) => sum + val * catalogEmbedding.data[idx], 0
+  );
+  return dotProduct;
+};</code></pre>
+        </div>
+
+        <div class="alert-box success">
+          <span class="alert-icon">✓</span>
+          <div class="alert-content">
+            <p><strong>Similarity Threshold Matrix:</strong></p>
+            <ul>
+              <li><strong>&gt; 0.85:</strong> Auto-Reject dispute (Item matches listing image).</li>
+              <li><strong>&lt; 0.60:</strong> Auto-Approve refund (Definitive item mismatch).</li>
+              <li><strong>0.60 to 0.85:</strong> Escalate to manual human review queue.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- CHAPTER 6 -->
+      <div class="chapter-anchor" id="ch6"></div>
+      <section class="chapter-section">
+        <div class="chapter-badge">Chapter 06</div>
+        <h1 class="chapter-title">Live Vendor Overview Dashboard Refactoring</h1>
+        
+        <h2>6.1 Dashboard Hydration Architecture</h2>
+        <p>The vendor dashboard transforms static server-rendered metric counters into live reactive state blocks that update without page reloads. The architecture uses a hybrid approach: initial data is fetched via HTTP on mount, then subsequent mutations arrive via Socket.io room events.</p>
+
+        <!-- Dynamic Shimmer/Pulse Dashboard Demo -->
+        <div class="metrics-demo-card">
+          <div class="demo-toolbar">
+            <div class="demo-title">Vendor Dashboard Simulated UI Panel</div>
+            <button class="demo-btn" id="simulate-btn">Simulate Socket Event</button>
+          </div>
+          <div class="metrics-demo-grid">
+            <div class="metric-demo-box" id="box-products">
+              <div class="metric-demo-label">Active Products Count</div>
+              <div class="metric-demo-value" id="val-products">42</div>
+            </div>
+            <div class="metric-demo-box" id="box-revenue">
+              <div class="metric-demo-label">Total Revenue</div>
+              <div class="metric-demo-value" id="val-revenue">Rs. 84,200</div>
+            </div>
+            <div class="metric-demo-box" id="box-orders">
+              <div class="metric-demo-label">Pending Dispatch</div>
+              <div class="metric-demo-value" id="val-orders">9</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="code-wrapper">
+          <div class="code-header">
+            <span class="code-title">File: src/app/vendor/dashboard/page.tsx (Simulated Hook)</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code class="language-javascript">socket.on('vendor_product_catalog_mutated', (payload) => {
+  const { field, newValue } = payload;
+  setMetrics(prev => ({ ...prev, [field]: newValue }));
+  
+  // Apply visual flash animation to target DOM node
+  triggerFlashAnimation(field);
+});</code></pre>
+        </div>
+      </section>
+
+      <!-- APPENDIX A -->
+      <div class="chapter-anchor" id="app-a"></div>
+      <section class="chapter-section">
+        <div class="chapter-badge appendix">Appendix A</div>
+        <h1 class="chapter-title">Full API Endpoint Reference</h1>
+        
+        <h2>A.1 Authentication Routes — <code>/api/auth</code></h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Method</th>
+              <th>Endpoint</th>
+              <th>Auth</th>
+              <th>Role</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="badge badge-post">POST</span></td>
+              <td><code>/register</code></td>
+              <td>❌</td>
+              <td>—</td>
+              <td>Create new user account</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-post">POST</span></td>
+              <td><code>/login</code></td>
+              <td>❌</td>
+              <td>—</td>
+              <td>Authenticate; returns JWT token</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-get">GET</span></td>
+              <td><code>/me</code></td>
+              <td>✅</td>
+              <td>Any</td>
+              <td>Fetch authenticated user profile</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-post">POST</span></td>
+              <td><code>/admin/login</code></td>
+              <td>❌</td>
+              <td>—</td>
+              <td>Admin login; creates IP-locked AdminSession</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2>A.2 Product Routes — <code>/api/products</code></h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Method</th>
+              <th>Endpoint</th>
+              <th>Auth</th>
+              <th>Role</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="badge badge-get">GET</span></td>
+              <td><code>/</code></td>
+              <td>❌</td>
+              <td>—</td>
+              <td>List all active products (paginated)</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-post">POST</span></td>
+              <td><code>/</code></td>
+              <td>✅</td>
+              <td>Vendor</td>
+              <td>Create new product listing</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-put">PUT</span></td>
+              <td><code>/:id</code></td>
+              <td>✅</td>
+              <td>Vendor</td>
+              <td>Update product (own store only)</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-delete">DELETE</span></td>
+              <td><code>/:id</code></td>
+              <td>✅</td>
+              <td>Vendor</td>
+              <td>Soft-delete product</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2>A.3 Order & Wallet Routes</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Method</th>
+              <th>Endpoint</th>
+              <th>Auth</th>
+              <th>Role</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="badge badge-post">POST</span></td>
+              <td><code>/api/orders</code></td>
+              <td>✅</td>
+              <td>Shopper</td>
+              <td>Create order (triggers loyalty ledger update)</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-patch">PATCH</span></td>
+              <td><code>/api/orders/:id/status</code></td>
+              <td>✅</td>
+              <td>Vendor</td>
+              <td>Update order status (triggers repayment hook)</td>
+            </tr>
+            <tr>
+              <td><span class="badge badge-get">GET</span></td>
+              <td><code>/api/loyalty/status</code></td>
+              <td>✅</td>
+              <td>Shopper</td>
+              <td>Get current tier + accumulated spend</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- APPENDIX B -->
+      <div class="chapter-anchor" id="app-b"></div>
+      <section class="chapter-section">
+        <div class="chapter-badge appendix">Appendix B</div>
+        <h1 class="chapter-title">Environment Variable Registry</h1>
+        
+        <div class="code-wrapper">
+          <div class="code-header">
+            <span class="code-title">File: .env</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code class="language-env"># ─── Database ─────────────────────────────────────────────────────────────────
+MONGO_URI=mongodb+srv://&lt;user&gt;:&lt;pass&gt;@cluster.mongodb.net/bazarboost
+
+# ─── Authentication ────────────────────────────────────────────────────────────
+JWT_SECRET=4f63c87e91d09baee922a106c507c570b672bb6decf88cf2ab5ef61a9c30f40a
+JWT_EXPIRE=7d
+
+# ─── Server ────────────────────────────────────────────────────────────────────
+PORT=5000
+NODE_ENV=production
+FRONTEND_URL=https://bazarboost.pk
+
+# ─── Redis / BullMQ ────────────────────────────────────────────────────────────
+REDIS_URL=redis://localhost:6379
+
+# ─── AI / Computer Vision ──────────────────────────────────────────────────────
+CLIP_MODEL_PATH=./models/clip-vit-base-patch32
+
+# ─── Test Environment ──────────────────────────────────────────────────────────
+TEST_MONGO_URI=mongodb://localhost:27017/bazarboost_test_sandbox</code></pre>
+        </div>
+      </section>
+
+      <!-- APPENDIX C -->
+      <div class="chapter-anchor" id="app-c"></div>
+      <section class="chapter-section">
+        <div class="chapter-badge appendix">Appendix C</div>
+        <h1 class="chapter-title">Database Index Manifest</h1>
+        
+        <div class="code-wrapper">
+          <div class="code-header">
+            <span class="code-title">Database Index Definitions</span>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre><code class="language-javascript">// compound performance queries
+
+// users collection
+db.users.createIndex({ email: 1 }, { unique: true });
+db.users.createIndex({ role: 1, status: 1 });
+
+// stores collection
+db.stores.createIndex({ vendorId: 1 }, { unique: true });
+db.stores.createIndex({ slug: 1 },     { unique: true });
+db.stores.createIndex({ debtZone: 1 });
+
+// products collection
+db.products.createIndex({ vendorId: 1, status: 1 });
+db.products.createIndex({ storeId: 1, stockBalance: 1 });
+db.products.createIndex({ title: 'text', description: 'text' }); 
+
+// orders collection
+db.orders.createIndex({ shopperId: 1, createdAt: -1 });
+db.orders.createIndex({ storeId: 1, status: 1 });
+
+// loyaltyledgercaches collection
+db.loyaltyledgercaches.createIndex({ userId: 1, monthKey: 1 }, { unique: true });
+
+// chatsessions collection
+db.chatsessions.createIndex({ storeId: 1, shopperId: 1 }, { unique: true });
+
+// messages collection
+db.messages.createIndex({ sessionId: 1, createdAt: 1 });
+
+// adminsessions collection
+db.adminsessions.createIndex({ adminId: 1, token: 1 });
+db.adminsessions.createIndex({ ipAddress: 1 });
+db.adminsessions.createIndex({ createdAt: 1 }, { expireAfterSeconds: 7200 }); // Auto-expiry</code></pre>
+        </div>
+      </section>
+
+      <!-- FOOTER -->
+      <footer class="docs-footer">
+        <div>&copy; 2026 BazarBoost Platform Engineering Division — Internal Reference manual.</div>
+        <div>Configured for: Web Browser / PDF Compilation</div>
+      </footer>
+
+    </div>
+  </main>
+
+  <!-- PrismJS scripts for Syntax Highlighting -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-css.min.js"></script>
+
+  <!-- Custom JS for Navigation Tracking, Search and Simulation -->
+  <script>
+    // Search Filtering
+    document.getElementById('sidebar-search').addEventListener('input', function(e) {
+      const searchTerm = e.target.value.toLowerCase();
+      const navItems = document.querySelectorAll('.nav-item');
+      
+      navItems.forEach(item => {
+        const text = item.textContent.toLowerCase();
+        if (text.includes(searchTerm)) {
+          item.style.display = 'flex';
+        } else {
+          item.style.display = 'none';
+        }
+      });
+    });
+
+    // Copy to Clipboard Utility
+    function copyCode(button) {
+      const pre = button.parentElement.nextElementSibling;
+      const code = pre.querySelector('code');
+      navigator.clipboard.writeText(code.innerText).then(() => {
+        button.innerText = 'Copied!';
+        button.style.borderColor = 'var(--accent-secondary)';
+        button.style.color = 'var(--accent-secondary)';
+        setTimeout(() => {
+          button.innerText = 'Copy';
+          button.style.borderColor = 'var(--border-subtle)';
+          button.style.color = 'var(--text-muted)';
+        }, 2000);
+      });
+    }
+
+    // Intersection Observer for Active TOC Tracking
+    const observerOptions = {
+      root: null,
+      rootMargin: '-20% 0px -60% 0px',
+      threshold: 0
+    };
+
+    const navItems = document.querySelectorAll('.nav-item');
+    const sections = document.querySelectorAll('.chapter-anchor');
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const targetId = entry.target.id;
+          
+          navItems.forEach(item => {
+            if (item.getAttribute('data-target') === targetId) {
+              item.classList.add('active');
+            } else {
+              item.classList.remove('active');
+            }
+          });
+        }
+      });
+    }, observerOptions);
+
+    sections.forEach(section => observer.observe(section));
+
+    // Dashboard metrics live mutation simulation
+    const simulateBtn = document.getElementById('simulate-btn');
+    const valProducts = document.getElementById('val-products');
+    const valRevenue = document.getElementById('val-revenue');
+    const valOrders = document.getElementById('val-orders');
+    
+    const boxProducts = document.getElementById('box-products');
+    const boxRevenue = document.getElementById('box-revenue');
+    const boxOrders = document.getElementById('box-orders');
+
+    simulateBtn.addEventListener('click', () => {
+      // Pick random metric to update
+      const options = ['products', 'revenue', 'orders'];
+      const chosen = options[Math.floor(Math.random() * options.length)];
+      
+      if (chosen === 'products') {
+        const currentVal = parseInt(valProducts.innerText);
+        const increment = Math.random() > 0.4 ? 1 : -1;
+        valProducts.innerText = currentVal + increment;
+        
+        boxProducts.classList.add('pulse');
+        setTimeout(() => boxProducts.classList.remove('pulse'), 800);
+      } else if (chosen === 'revenue') {
+        const currentVal = parseInt(valRevenue.innerText.replace('Rs. ', '').replace(',', ''));
+        const increment = Math.floor(Math.random() * 5000) + 1500;
+        const newVal = currentVal + increment;
+        valRevenue.innerText = 'Rs. ' + newVal.toLocaleString();
+        
+        boxRevenue.classList.add('pulse');
+        setTimeout(() => boxRevenue.classList.remove('pulse'), 800);
+      } else if (chosen === 'orders') {
+        const currentVal = parseInt(valOrders.innerText);
+        if (currentVal > 0) {
+          const decrement = 1;
+          valOrders.innerText = currentVal - decrement;
+          
+          boxOrders.classList.add('pulse');
+          setTimeout(() => boxOrders.classList.remove('pulse'), 800);
+        }
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "bazaar-boost",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "bazaar-frontend",
+    "bazaar-backend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w bazaar-frontend\" \"npm run dev -w bazaar-backend\"",
+    "build:frontend": "npm run build -w bazaar-frontend",
+    "build:backend": "npm run build -w bazaar-backend",
+    "start:backend": "npm run start -w bazaar-backend",
+    "start:frontend": "npm run start -w bazaar-frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

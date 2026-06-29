@@ -1,0 +1,85 @@
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: bazaarboost_mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    restart: always
+
+  redis:
+    image: redis:alpine
+    container_name: bazaarboost_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: always
+
+  bazaarboost-backend-prod:
+    build:
+      context: ./bazaar-backend
+      dockerfile: Dockerfile
+    container_name: bazaarboost_backend_prod
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - MONGO_URI=mongodb://mongodb:27017/bazaarboost
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=bazaarboost_secret_key_2026_local
+      - NODE_ENV=production
+    depends_on:
+      - mongodb
+      - redis
+    restart: always
+
+  bazaarboost-socket-nodes:
+    build:
+      context: ./bazaar-backend
+      dockerfile: Dockerfile
+    container_name: bazaarboost_socket_nodes
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - MONGO_URI=mongodb://mongodb:27017/bazaarboost
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=bazaarboost_secret_key_2026_local
+      - NODE_ENV=production
+    depends_on:
+      - mongodb
+      - redis
+    restart: always
+
+  bazaarboost-frontend-prod:
+    build:
+      context: ./bazaar-frontend
+      dockerfile: Dockerfile
+    container_name: bazaarboost_frontend_prod
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:4000
+    depends_on:
+      - bazaarboost-backend-prod
+    restart: always
+
+  nginx:
+    image: nginx:alpine
+    container_name: bazaarboost_nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - bazaarboost-frontend-prod
+      - bazaarboost-backend-prod
+      - bazaarboost-socket-nodes
+    restart: always
+
+volumes:
+  mongo_data:
+  redis_data:

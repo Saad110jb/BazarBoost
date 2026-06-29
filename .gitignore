@@ -1,0 +1,57 @@
+# Dependency directories
+node_modules/
+jspm_packages/
+web_drivers/
+
+# Next.js build output
+.next/
+out/
+
+# Production builds
+build/
+dist/
+
+# Local env files
+.env*
+!.env.example
+
+# Tesseract training data
+*.traineddata
+
+# User uploads
+uploads/
+**/uploads/
+
+# IDE configurations
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+*.log
+
+# Cache directories
+.cache/
+.npm/
+.eslintcache
+.parcel-cache
+
+# Local models cache (e.g. transformers cached models)
+.cache/huggingface/
+.cache/onnx/
+onnx/
+models/
