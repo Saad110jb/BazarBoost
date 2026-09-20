@@ -374,6 +374,16 @@ const socketHandler = (io) => {
       socket.emit('joined_room', { roomId });
     });
 
+    // Support join_negotiation_room alias
+    socket.on('join_negotiation_room', async (data) => {
+      const roomId = data?.roomId;
+      if (roomId) {
+        socket.join(roomId);
+        console.log(`Socket ${socket.id} joined negotiation room: ${roomId}`);
+        socket.emit('joined_room', { roomId });
+      }
+    });
+
     // Send a message supporting new JSON payload and legacy payload
     socket.on('send_message', async (payload) => {
       if (payload && payload.meta && payload.meta.roomId) {
@@ -492,6 +502,22 @@ const socketHandler = (io) => {
           };
 
           io.to(meta.roomId).emit('receive_message', outboundPayload);
+          io.to(meta.roomId).emit('receive_negotiation_msg', outboundPayload);
+
+          if (storeId && customerId) {
+            const formattedRoom = `room:${storeId}_${customerId}`;
+            io.to(formattedRoom).emit('receive_message', outboundPayload);
+            io.to(formattedRoom).emit('receive_negotiation_msg', outboundPayload);
+          }
+
+          if (customerId) {
+            io.to(`user:${customerId.toString()}`).emit('receive_message', outboundPayload);
+            io.to(`user:${customerId.toString()}`).emit('receive_negotiation_msg', outboundPayload);
+          }
+          if (vendorId) {
+            io.to(`user:${vendorId.toString()}`).emit('receive_message', outboundPayload);
+            io.to(`user:${vendorId.toString()}`).emit('receive_negotiation_msg', outboundPayload);
+          }
 
           // Offline notification check
           if (!isMock) {
@@ -827,15 +853,29 @@ const socketHandler = (io) => {
           priceOffer: proposedPrice ? parseFloat(proposedPrice) : null
         };
 
-        // Log active sockets in room before emitting
-        const socketsInRoom = io.sockets.adapter.rooms.get(roomId);
-        console.log(`[DEBUG Broadcast] Emitting receive_negotiation_msg to room: ${roomId}. Sockets in room:`, socketsInRoom ? Array.from(socketsInRoom) : 'NONE');
-
-        // Physically map to room broadcast target
+        // Physically map to room broadcast targets
         io.to(roomId).emit('receive_negotiation_msg', outboundPayload);
+        io.to(roomId).emit('receive_message', outboundPayload);
         
+        if (storeId && shopperId) {
+          const formattedRoom = `room:${storeId}_${shopperId}`;
+          io.to(formattedRoom).emit('receive_negotiation_msg', outboundPayload);
+          io.to(formattedRoom).emit('receive_message', outboundPayload);
+        }
+
+        // Broadcast to personal user rooms (guarantees delivery even if tab reconnected/joined late)
+        if (shopperId) {
+          io.to(`user:${shopperId.toString()}`).emit('receive_negotiation_msg', outboundPayload);
+          io.to(`user:${shopperId.toString()}`).emit('receive_message', outboundPayload);
+        }
+        if (vendorId) {
+          io.to(`user:${vendorId.toString()}`).emit('receive_negotiation_msg', outboundPayload);
+          io.to(`user:${vendorId.toString()}`).emit('receive_message', outboundPayload);
+        }
+
         // Backward compatibility notifications
         const legacyRoom = `negotiation_${shopperId}_${vendorId}`;
+        io.to(legacyRoom).emit('receive_negotiation_msg', outboundPayload);
         io.to(legacyRoom).emit('receive_message', outboundPayload);
 
         console.log(`Negotiation msg from ${senderId} broadcasted to room: ${roomId} (Mock: ${isMockMode})`);

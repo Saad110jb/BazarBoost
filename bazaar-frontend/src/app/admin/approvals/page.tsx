@@ -159,7 +159,7 @@ export default function AdminApprovalsPage() {
                   const isDup = item.isDuplicate;
                   const storeName = item.storeId?.name || item.vendorId?.name || "Merchant Store";
                   const storeSlug = item.storeId?.slug || "";
-                  const budgetAmount = item.type === "ad_bid" ? `${item.bidAmount} USD` : `${item.amountPKR} PKR`;
+                  const budgetAmount = item.type === "ad_bid" ? `Rs. ${item.bidAmount}` : `Rs. ${item.amountPKR}`;
 
                   return (
                     <tr 

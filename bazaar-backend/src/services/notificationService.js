@@ -75,31 +75,67 @@ export const dispatchNotification = async (eventName, payload) => {
           const { order, shopper } = payload;
           if (!order || !shopper) return;
 
-          // 1. Send shopper confirmation push + email
+          // 1. Send shopper confirmation push + email/whatsapp trigger
           const shopperTitle = '🛒 Order Placed!';
-          const shopperBody = `Your order from store context has been submitted. Check details in your email.`;
-          await pushNotification(shopper._id, 'general', shopperTitle, shopperBody, { orderId: order._id.toString() });
+          const shopperBody = `Your order #${order._id.toString().slice(-8).toUpperCase()} has been submitted. Check details in your email.`;
+          pushNotification(shopper._id, 'general', shopperTitle, shopperBody, { orderId: order._id.toString() });
           
           const shopperEmailTemplate = buildOrderStatusEmail(order, 'submitted / pending payment');
-          await sendPlatformEmail(shopper.email, `Order Placed - #${order._id.toString().slice(-8).toUpperCase()}`, shopperEmailTemplate);
+          sendPlatformEmail(
+            shopper.email, 
+            `Order Placed - #${order._id.toString().slice(-8).toUpperCase()}`, 
+            'ORDER_CREATED', 
+            {
+              orderId: order._id.toString(),
+              customerName: shopper.name,
+              customerPhone: shopper.phone || order.shippingAddress?.phone || '+923001234567',
+              totalAmount: order.totalAmount,
+              items: order.items,
+              status: order.status,
+              htmlTemplate: shopperEmailTemplate
+            }
+          );
 
-          // 2. Fetch Store & Vendor
+          // 2. Fetch Store & Vendor & StoreAdmins
           const store = await Store.findById(order.storeId).populate('vendorId', 'name email');
-          if (store) {
+          if (store && store.vendorId) {
             // Find all storeAdmins for this store
-            const storeAdmins = await User.find({ storeId: store._id, role: 'storeAdmin' }).select('email');
-            const operatorEmails = [store.vendorId.email, ...storeAdmins.map(sa => sa.email)].filter(Boolean);
+            const storeAdmins = await User.find({ 
+              $or: [
+                { storeId: store._id },
+                { activeStoreId: store._id.toString() }
+              ],
+              role: { $in: ['vendor', 'storeAdmin'] } 
+            }).select('email _id');
 
-            // Send order alert to all store operators
+            const operatorEmails = Array.from(new Set([
+              store.vendorId.email, 
+              ...storeAdmins.map(sa => sa.email)
+            ])).filter(Boolean);
+
+            // Send order alert to all store operators (Vendor + StoreAdmins)
             if (operatorEmails.length > 0) {
               const vendorEmailTemplate = buildNewOrderAlertEmail(order, store);
-              await sendPlatformEmail(operatorEmails, `New Order Incoming - Store: ${store.name}`, vendorEmailTemplate);
+              sendPlatformEmail(
+                operatorEmails, 
+                `New Order Incoming - Store: ${store.name} (#${order._id.toString().slice(-8).toUpperCase()})`, 
+                'VENDOR_ORDER_ALERT',
+                {
+                  orderId: order._id.toString(),
+                  storeName: store.name,
+                  totalAmount: order.totalAmount,
+                  htmlTemplate: vendorEmailTemplate
+                }
+              );
             }
 
-            // Send push to vendor
+            // Send real-time push notification to all store operators
             const vendorTitle = '🛍️ New Order Received';
-            const vendorBody = `Store "${store.name}" has received order #${order._id.toString().slice(-8).toUpperCase()} for Rs. ${order.totalAmount.toLocaleString()}`;
-            await pushNotification(store.vendorId._id, 'general', vendorTitle, vendorBody, { orderId: order._id.toString() });
+            const vendorBody = `Store "${store.name}" received order #${order._id.toString().slice(-8).toUpperCase()} for Rs. ${order.totalAmount.toLocaleString()}`;
+            
+            for (const operator of storeAdmins) {
+              pushNotification(operator._id, 'general', vendorTitle, vendorBody, { orderId: order._id.toString() });
+            }
           }
           break;
         }
@@ -109,6 +145,11 @@ export const dispatchNotification = async (eventName, payload) => {
           const { order, statusText, status } = payload;
           const currentStatus = statusText || status;
           if (!order) return;
+
+          // Skip generic status change notification if order is in retake workflow
+          if (['return_requested', 'return_approved', 'returned'].includes(currentStatus)) {
+            return;
+          }
 
           // Fetch shopper user details
           const shopper = await User.findById(order.shopperId).select('name email');
@@ -122,13 +163,14 @@ export const dispatchNotification = async (eventName, payload) => {
               completed:   { title: '🎉 Order Complete',         body: `Your order from ${storeName} is complete. Thank you for shopping with us!` },
               cancelled:   { title: '❌ Order Cancelled',        body: `Your order from ${storeName} has been cancelled. Contact support if this was unexpected.` },
             };
-            const notif = notifMessages[currentStatus] || { title: `📦 Order Status: ${currentStatus.toUpperCase()}`, body: `Your order #${order._id.toString().slice(-8).toUpperCase()} is now ${currentStatus}.` };
+            const notif = notifMessages[currentStatus];
+            if (notif) {
+              await pushNotification(shopper._id, 'order_update', notif.title, notif.body, { orderId: order._id.toString(), storeName });
 
-            await pushNotification(shopper._id, 'order_update', notif.title, notif.body, { orderId: order._id.toString(), storeName });
-
-            // Send email
-            const emailTemplate = buildOrderStatusEmail(order, currentStatus);
-            sendPlatformEmail(shopper.email, `Order Status Update: ${currentStatus.toUpperCase()} - #${order._id.toString().slice(-8).toUpperCase()}`, emailTemplate);
+              // Send email
+              const emailTemplate = buildOrderStatusEmail(order, currentStatus);
+              sendPlatformEmail(shopper.email, `Order Status Update: ${currentStatus.toUpperCase()} - #${order._id.toString().slice(-8).toUpperCase()}`, emailTemplate);
+            }
           }
 
           // Trigger chat cleanup if order is completed or cancelled

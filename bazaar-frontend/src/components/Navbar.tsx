@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import PlatformLogo from "./PlatformLogo";
 import {
   ShoppingBag, Search, Bell, User, Menu, X, Zap, LogOut,
-  LayoutDashboard, Store, Package, Megaphone
+  LayoutDashboard, Store, Package, Megaphone, Wallet
 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import CartDrawer from "./CartDrawer";
@@ -132,6 +132,7 @@ export default function Navbar() {
       { href: "/admin/approvals", label: "Approvals", icon: <LayoutDashboard size={14} /> },
     ],
     shopper: [
+      { href: "/shopper/wallet", label: "My Wallet", icon: <Wallet size={14} /> },
       { href: "/negotiation", label: "My Chats", icon: <Store size={14} /> },
       { href: "/shopper/disputes", label: "My Disputes", icon: <Megaphone size={14} /> },
     ],
@@ -278,6 +279,22 @@ export default function Navbar() {
                     <hr style={{ border: "none", borderTop: "1px solid var(--border-subtle)", margin: "0.2rem 0" }} />
                   </>
                 )}
+
+                <Link
+                  href="/shopper/wallet"
+                  onClick={() => setDropdownOpen(false)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "0.5rem",
+                    width: "100%", padding: "0.5rem 0.75rem", borderRadius: 8,
+                    color: "var(--text-primary)", textDecoration: "none", fontSize: "0.875rem", fontWeight: 600,
+                    marginBottom: "0.25rem", transition: "all 0.2s"
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "none"}
+                >
+                  <Wallet size={15} style={{ color: "#a855f7" }} />
+                  My Wallet Ledger
+                </Link>
 
                 <button
                   onClick={handleRoleSwitch}

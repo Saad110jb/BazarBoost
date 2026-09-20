@@ -7,6 +7,8 @@ import {
   User, MapPin, DollarSign, X, Check, Loader, AlertCircle, Sparkles 
 } from "lucide-react";
 
+import { getImageUrl } from "@/utils/imageUrl";
+
 const API = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined" && process.env.NEXT_PUBLIC_API_URL !== "null") ? process.env.NEXT_PUBLIC_API_URL : "http://localhost:5000";
 
 const FALLBACK_ORDERS = [
@@ -73,7 +75,9 @@ const COLUMNS = [
   { id: "processing", label: "Processing/Packing", color: "#3b82f6" },
   { id: "dispatched", label: "Dispatched/Shipped", color: "#a855f7" },
   { id: "delivered", label: "Delivered", color: "#10b981" },
-  { id: "completed", label: "Completed", color: "#6366f1" }
+  { id: "return_requested", label: "Retake Request", color: "#ef4444" },
+  { id: "return_approved", label: "Retake Approved (In-Pickup)", color: "#f59e0b" },
+  { id: "completed", label: "Completed/Settled", color: "#6b7280" }
 ];
 
 export default function VendorOrdersPage() {
@@ -92,6 +96,8 @@ export default function VendorOrdersPage() {
   const [validationError, setValidationError] = useState("");
   const [vendorCancelReason, setVendorCancelReason] = useState("out_of_stock");
   const [customVendorReason, setCustomVendorReason] = useState("");
+  const [declineReturnReason, setDeclineReturnReason] = useState("");
+  const [declineSubmitting, setDeclineSubmitting] = useState(false);
 
   const loadOrders = async (storeId: string) => {
     setLoading(true);
@@ -282,28 +288,36 @@ export default function VendorOrdersPage() {
         {/* Print wrapper styles */}
         <style dangerouslySetInnerHTML={{__html: `
           @media print {
+            body {
+              background: #ffffff !important;
+              color: #000000 !important;
+            }
             body * {
               visibility: hidden;
             }
             #print-area, #print-area * {
-              visibility: visible;
+              visibility: visible !important;
             }
             #print-area {
-              position: absolute;
-              left: 0;
-              top: 0;
-              width: 100%;
+              position: fixed !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 100% !important;
+              height: auto !important;
               color: #000000 !important;
               background: #ffffff !important;
               padding: 2rem !important;
-              page-break-inside: avoid;
+              border: none !important;
+              box-shadow: none !important;
+              z-index: 99999 !important;
             }
-            .no-print {
+            .no-print, .no-print * {
               display: none !important;
+              visibility: hidden !important;
             }
             @page {
               size: A4 portrait;
-              margin: 1cm;
+              margin: 10mm;
             }
           }
         `}} />
@@ -320,7 +334,7 @@ export default function VendorOrdersPage() {
         </div>
 
         {/* Kanban Board Showcase layout */}
-        <div className="no-print" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "1rem", alignItems: "start", minHeight: "65vh" }}>
+        <div className="no-print" style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "1rem", alignItems: "start", minHeight: "65vh" }}>
           {COLUMNS.map(col => {
             const columnOrders = orders.filter(o => o.status === col.id);
             return (
@@ -443,7 +457,7 @@ export default function VendorOrdersPage() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (confirm("Reject customer's order cancellation request?")) {
+                              if (confirm("Reject customer's order cancellation request? The order will proceed with fulfillment.")) {
                                 handleCancelApproval(order._id, false);
                               }
                             }}
@@ -451,6 +465,58 @@ export default function VendorOrdersPage() {
                           >
                             Reject
                           </button>
+                        </div>
+                      )}
+
+                      {(order.returnRequested || order.status === "return_requested") && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", marginTop: "0.75rem", borderTop: "1px solid rgba(245,158,11,0.2)", paddingTop: "0.5rem", background: "rgba(245,158,11,0.04)", padding: "0.5rem", borderRadius: "8px" }}>
+                          <span style={{ fontSize: "0.68rem", color: "#f59e0b", fontWeight: 800 }}>⚠️ Retake / Return Requested</span>
+                          <p style={{ fontSize: "0.65rem", color: "var(--text-secondary)", lineHeight: 1.3 }}>Reason: {order.returnReason || "Customer flagged issue with item"}</p>
+                          
+                          {/* Customer Evidence Photo Thumbnail */}
+                          {order.returnEvidenceUrl && (
+                            <div style={{ marginTop: "0.2rem" }}>
+                              <span style={{ fontSize: "0.62rem", color: "var(--text-muted)", display: "block", marginBottom: "0.2rem" }}>Customer Photo Evidence:</span>
+                              <a href={getImageUrl(order.returnEvidenceUrl)} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block" }}>
+                                <img 
+                                  src={getImageUrl(order.returnEvidenceUrl)} 
+                                  alt="Return Evidence" 
+                                  style={{ width: "60px", height: "60px", borderRadius: "6px", objectFit: "cover", border: "1px solid rgba(245,158,11,0.3)" }} 
+                                  onError={(e) => { e.currentTarget.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 24 24' fill='none' stroke='%23f59e0b' stroke-width='2'><rect x='3' y='3' width='18' height='18' rx='2'/><circle cx='8.5' cy='8.5' r='1.5'/><polyline points='21 15 16 10 5 21'/></svg>"; }}
+                                />
+                              </a>
+                            </div>
+                          )}
+                          <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.2rem" }}>
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const token = localStorage.getItem("bazaar_token");
+                                const res = await fetch(`${API}/api/orders/${order._id}/return-action`, {
+                                  method: "PUT",
+                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                  body: JSON.stringify({ action: "approve", notes: "Approved for rider retake pickup" })
+                                });
+                                const data = await res.json();
+                                if (data.success) { alert("Return approved!"); loadOrders(activeStoreId); }
+                              }}
+                              style={{ flex: 1, background: "#10b981", color: "#000000", border: "none", borderRadius: "4px", fontSize: "0.68rem", fontWeight: 800, padding: "0.3rem", cursor: "pointer" }}
+                            >
+                              Approve Return
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedOrder(order);
+                                setDeclineReturnReason("");
+                                setValidationError("");
+                                setActiveModal("decline_return");
+                              }}
+                              style={{ flex: 1, background: "rgba(239, 68, 68, 0.15)", border: "1px solid rgba(239, 68, 68, 0.3)", color: "#ef4444", borderRadius: "4px", fontSize: "0.68rem", fontWeight: 700, padding: "0.3rem", cursor: "pointer" }}
+                            >
+                              Decline
+                            </button>
+                          </div>
                         </div>
                       )}
 
@@ -703,7 +769,82 @@ export default function VendorOrdersPage() {
           </div>
         )}
 
-      </main>
+        {/* ─────────────────────────────────────────────────────────────────── */}
+        {/* MODAL 6: Decline Retake / Return Request Modal                      */}
+        {/* ─────────────────────────────────────────────────────────────────── */}
+        {activeModal === "decline_return" && selectedOrder && (
+          <div className="no-print" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+            <div className="glass-card animate-fade-up" style={{ padding: "2rem", maxWidth: "460px", width: "90%" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+                <h3 style={{ fontWeight: 800, fontSize: "1.1rem", color: "#ef4444" }}>Decline Retake Request</h3>
+                <button onClick={() => setActiveModal(null)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}><X size={18} /></button>
+              </div>
+
+              {validationError && (
+                <div style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 10, padding: "0.75rem", marginBottom: "1rem", color: "#ef4444", display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.78rem" }}>
+                  <AlertCircle size={14} /> {validationError}
+                </div>
+              )}
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", lineHeight: 1.4 }}>
+                  Declining this retake request will mark Order <strong>#{selectedOrder._id?.toString().slice(-8).toUpperCase()}</strong> as <strong style={{ color: "#10b981" }}>Completed</strong> and release order payout funds to your balance.
+                </p>
+
+                <div>
+                  <label style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginBottom: "0.4rem", fontWeight: 600 }}>Reason for Declining Retake Request *</label>
+                  <textarea
+                    className="input-field"
+                    rows={3}
+                    style={{ width: "100%", background: "#151521", border: "1px solid var(--border-subtle)", color: "#ffffff", padding: "0.6rem", fontSize: "0.8rem" }}
+                    placeholder="Provide clear justification for declining (e.g., photo evidence shows user damage or missing tags)..."
+                    required
+                    value={declineReturnReason}
+                    onChange={e => setDeclineReturnReason(e.target.value)}
+                  />
+                </div>
+
+                <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem" }}>
+                  <button type="button" onClick={() => setActiveModal(null)} className="btn-secondary" style={{ flex: 1, justifyContent: "center" }}>Cancel</button>
+                  <button
+                    disabled={declineSubmitting || !declineReturnReason.trim()}
+                    onClick={async () => {
+                      if (!declineReturnReason.trim()) {
+                        setValidationError("Please specify reason for declining retake request.");
+                        return;
+                      }
+                      setDeclineSubmitting(true);
+                      try {
+                        const token = localStorage.getItem("bazaar_token");
+                        const res = await fetch(`${API}/api/orders/${selectedOrder._id}/return-action`, {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                          body: JSON.stringify({ action: "reject", notes: declineReturnReason })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          setActiveModal(null);
+                          setDeclineReturnReason("");
+                          loadOrders(activeStoreId);
+                        } else {
+                          setValidationError(data.message || "Failed to decline return request.");
+                        }
+                      } catch (err) {
+                        setValidationError("Network error declining retake request.");
+                      } finally {
+                        setDeclineSubmitting(false);
+                      }
+                    }}
+                    className="btn-primary"
+                    style={{ flex: 1, justifyContent: "center", background: "#ef4444", color: "#ffffff" }}
+                  >
+                    {declineSubmitting ? "Processing..." : "Confirm & Complete Order"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
       {activeModal === "invoice" && selectedOrder && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
@@ -836,6 +977,7 @@ export default function VendorOrdersPage() {
           </div>
         </div>
       )}
+      </main>
     </div>
   );
 }

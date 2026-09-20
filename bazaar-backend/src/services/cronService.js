@@ -512,6 +512,54 @@ export const runInventoryForecastSweep = async () => {
 };
 
 /**
+ * runAutoCompletionCron
+ *
+ * Scans for delivered orders where more than 7 days have elapsed since delivery/update
+ * without active return requests, and automatically marks them as 'completed'.
+ */
+export const runAutoCompletionCron = async () => {
+  console.log('[Auto-Completion Worker] Sweeping delivered orders older than 7 days...');
+  try {
+    const Order = (await import('../models/Order.js')).default;
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const staleDeliveredOrders = await Order.find({
+      status: 'delivered',
+      returnRequested: false,
+      updatedAt: { $lt: sevenDaysAgo }
+    });
+
+    if (staleDeliveredOrders.length > 0) {
+      console.log(`[Auto-Completion Worker] Found ${staleDeliveredOrders.length} delivered orders to auto-complete.`);
+      
+      for (const order of staleDeliveredOrders) {
+        order.status = 'completed';
+        await order.save();
+
+        if (!order.isPayoutProcessed) {
+          try {
+            const { processFulfillmentPayout } = await import('./orderService.js');
+            await processFulfillmentPayout(order._id);
+          } catch (payoutErr) {
+            console.error(`[Auto-Completion Payout Error] Order ${order._id}:`, payoutErr.message);
+          }
+        }
+
+        if (global.io) {
+          global.io.to(`order:${order._id.toString()}`).emit('order_status_update', {
+            orderId: order._id.toString(),
+            status: 'completed'
+          });
+        }
+      }
+      console.log(`[Auto-Completion Worker] Successfully auto-completed ${staleDeliveredOrders.length} orders.`);
+    }
+  } catch (err) {
+    console.error('[Auto-Completion Worker Error]', err.message);
+  }
+};
+
+/**
  * startCronScheduler
  *
  * Boots the daily background sweep worker and the hourly AI shopper sync daemon.
@@ -520,12 +568,14 @@ export const startCronScheduler = () => {
   // Run 5 seconds after startup to settle any stale loans immediately
   setTimeout(() => {
     runRepaymentSweepCron();
+    runAutoCompletionCron();
   }, 5000);
 
   // Set interval to repeat every 24 hours
   const intervalMs = 24 * 60 * 60 * 1000;
   setInterval(() => {
     runRepaymentSweepCron();
+    runAutoCompletionCron();
   }, intervalMs);
 
   // ── AI Shopper Predictive Sync + Fraud Guardrail: fire every 60 minutes ──────

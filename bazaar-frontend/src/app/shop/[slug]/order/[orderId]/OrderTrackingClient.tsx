@@ -5,7 +5,7 @@ import { useStore } from "../../layout";
 import { 
   Check, Phone, ShieldCheck, Truck, User, MapPin, 
   ChevronRight, Calendar, Sparkles, ExternalLink, MessageSquare, 
-  AlertCircle, Loader, Star, Camera, FileText
+  AlertCircle, Loader, Star, Camera, FileText, RotateCcw
 } from "lucide-react";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -106,6 +106,89 @@ export default function OrderTrackingClient() {
   const [disputeError, setDisputeError] = useState("");
   const [disputeSuccess, setDisputeSuccess] = useState("");
   const [existingTickets, setExistingTickets] = useState<any[]>([]);
+  // Retake / Return Modal states
+  const [showRetakeModal, setShowRetakeModal] = useState(false);
+  const [retakeReason, setRetakeReason] = useState("");
+  const [retakePhotoUrl, setRetakePhotoUrl] = useState("");
+  const [retakeUploading, setRetakeUploading] = useState(false);
+  const [retakeSubmitting, setRetakeSubmitting] = useState(false);
+  const [retakeError, setRetakeError] = useState("");
+
+  const handleRetakeFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const token = localStorage.getItem("bazaar_token");
+    if (!token) return;
+
+    setRetakeUploading(true);
+    setRetakeError("");
+
+    const formData = new FormData();
+    formData.append("receipt", file);
+
+    try {
+      const res = await fetch(`${API}/api/orders/upload-receipt`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.paymentReceiptUrl) {
+        setRetakePhotoUrl(data.paymentReceiptUrl);
+      } else {
+        setRetakeError(data.message || "Failed to upload photo from device.");
+      }
+    } catch (err) {
+      setRetakeError("Network error uploading image file.");
+    } finally {
+      setRetakeUploading(false);
+    }
+  };
+
+  const handleRetakeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!retakeReason.trim()) {
+      setRetakeError("Please enter a valid reason for product retake.");
+      return;
+    }
+    if (!retakePhotoUrl.trim()) {
+      setRetakeError("Photo evidence URL/link is mandatory for product retake requests.");
+      return;
+    }
+
+    const token = localStorage.getItem("bazaar_token");
+    if (!token) return;
+
+    setRetakeSubmitting(true);
+    setRetakeError("");
+
+    try {
+      const res = await fetch(`${API}/api/orders/${orderId}/return`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reason: retakeReason, returnEvidenceUrl: retakePhotoUrl })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setShowRetakeModal(false);
+        // Reload order
+        const orderRes = await fetch(`${API}/api/orders/${orderId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const orderData = await orderRes.json();
+        if (orderData.success && orderData.order) {
+          setOrder(orderData.order);
+        }
+      } else {
+        setRetakeError(data.message || "Failed to submit return request.");
+      }
+    } catch (err) {
+      setRetakeError("Network error submitting retake request.");
+    } finally {
+      setRetakeSubmitting(false);
+    }
+  };
 
   const fetchOrderTickets = async () => {
     const token = localStorage.getItem("bazaar_token");
@@ -702,6 +785,60 @@ export default function OrderTrackingClient() {
                   {cancelSuccess}
                 </div>
               )}
+              {/* Order Retake / Return Action Launcher - Activates ONLY after product is Delivered */}
+              {['delivered', 'return_requested', 'return_approved', 'return_rejected'].includes(order.status) && (
+                <div className="border-t border-slate-800/80 pt-4 mt-2">
+                  <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1">
+                    <RotateCcw size={14} /> Product Retake & Return Guarantee
+                  </h4>
+
+                  {order.status === 'return_requested' ? (
+                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3.5 text-xs text-amber-300">
+                      <p className="font-bold">⚠️ Retake Request Pending Merchant Review</p>
+                      <p className="text-slate-400 text-[11px] mt-1">Reason: "{order.returnReason}"</p>
+                    </div>
+                  ) : order.status === 'return_approved' ? (
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3.5 text-xs text-emerald-400">
+                      <p className="font-bold">✅ Retake Approved & 100% Refunded</p>
+                      <p className="text-slate-400 text-[11px] mt-1">A return rider has been dispatched. Refund credited to your Shopper Wallet.</p>
+                    </div>
+                  ) : order.status === 'return_rejected' ? (
+                    <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3.5 text-xs text-rose-400">
+                      <p className="font-bold">❌ Return Request Declined</p>
+                      <p className="text-slate-400 text-[11px] mt-1">Note: {order.returnActionNotes || "Failed return policy criteria."}</p>
+                    </div>
+                  ) : (
+                    <div>
+                      {(() => {
+                        const daysElapsed = (new Date().getTime() - new Date(order.updatedAt || order.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+                        if (daysElapsed > 6) {
+                          return (
+                            <p className="text-[11px] text-slate-500 italic">
+                              🔒 Retake window expired (More than 6 days elapsed since delivery).
+                            </p>
+                          );
+                        }
+                        return (
+                          <div>
+                            <div className="flex justify-between items-center text-[11px] text-slate-400 mb-2">
+                              <span>Policy Window:</span>
+                              <span className={daysElapsed <= 3 ? "text-emerald-400 font-bold" : "text-amber-400 font-bold"}>
+                                {daysElapsed <= 3 ? "🛡️ 3-Day 100% Full Refund Guarantee" : "⚠️ Day 4-6 Evaluation Window"}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => setShowRetakeModal(true)}
+                              className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs w-full py-2.5 rounded-lg shadow-lg transition-all border-none cursor-pointer"
+                            >
+                              Request Product Retake / Return
+                            </button>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -1013,6 +1150,97 @@ export default function OrderTrackingClient() {
         </div>
       )}
 
+      {/* Retake Request Modal Component */}
+      {showRetakeModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-filter backdrop-blur-md flex items-center justify-center z-[99999] p-6">
+          <div className="bg-[#0d0d14] border border-amber-500/30 rounded-2xl w-full max-w-[480px] p-6 sm:p-8 text-slate-100 animate-fade-up shadow-2xl">
+            <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-3">
+              <h3 className="text-base font-extrabold text-amber-400 flex items-center gap-2">
+                <RotateCcw size={18} /> Request Product Retake / Return
+              </h3>
+              <button onClick={() => setShowRetakeModal(false)} className="bg-none border-none text-slate-500 hover:text-slate-400 text-lg cursor-pointer">✕</button>
+            </div>
+
+            {retakeError && (
+              <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs p-3 rounded-lg mb-4">
+                {retakeError}
+              </div>
+            )}
+
+            <form onSubmit={handleRetakeSubmit} className="flex flex-col gap-4">
+              <div>
+                <label className="text-xs text-slate-300 font-bold block mb-1.5">
+                  Detailed Reason for Retake <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  placeholder="Explain issue (e.g. Defective item, wrong size, damaged packaging)..."
+                  value={retakeReason}
+                  onChange={e => setRetakeReason(e.target.value)}
+                  className="w-full bg-[#12121a] border border-slate-800 text-slate-100 rounded-lg p-3 text-xs focus:outline-none focus:border-amber-500/50"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-slate-300 font-bold block mb-1.5 flex justify-between items-center">
+                  <span>Photo Evidence Screenshot / Image <span className="text-rose-500">*</span></span>
+                  {retakeUploading && <span className="text-amber-400 text-[10px] animate-pulse">Uploading file...</span>}
+                </label>
+
+                {/* File picker button from device */}
+                <div className="flex gap-2 mb-2">
+                  <label className="bg-slate-900 border border-slate-700 hover:bg-slate-800 text-slate-200 text-xs font-bold px-3 py-2 rounded-lg cursor-pointer flex items-center gap-1.5 transition-colors">
+                    <Camera size={14} className="text-amber-400" />
+                    {retakeUploading ? "Uploading..." : "Choose File from Device"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleRetakeFileUpload}
+                      className="hidden"
+                    />
+                  </label>
+
+                  {retakePhotoUrl && (
+                    <div className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] px-2.5 py-1 rounded-lg font-bold">
+                      <Check size={12} /> Image Attached
+                    </div>
+                  )}
+                </div>
+
+                <input
+                  type="text"
+                  required
+                  placeholder="https://i.ibb.co/evidence.jpg (or paste image URL)"
+                  value={retakePhotoUrl}
+                  onChange={e => setRetakePhotoUrl(e.target.value)}
+                  className="w-full bg-[#12121a] border border-slate-800 text-slate-100 rounded-lg p-3 text-xs focus:outline-none focus:border-amber-500/50"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Upload directly from your device or paste a photo link. Required for merchant verification.
+                </p>
+              </div>
+
+              <div className="flex gap-3 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRetakeModal(false)}
+                  className="flex-1 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 font-bold text-xs py-2.5 rounded-lg transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={retakeSubmitting}
+                  className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs py-2.5 rounded-lg transition-all border-none cursor-pointer"
+                >
+                  {retakeSubmitting ? "Submitting..." : "Submit Retake Request"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

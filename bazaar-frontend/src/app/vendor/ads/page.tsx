@@ -831,7 +831,7 @@ export default function VendorAdsPage() {
                   <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: 1.4, marginBottom: "0.75rem" }}>{slot.description || "Premium slot advertisement."}</p>
                   
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: "0.95rem", fontWeight: 800, color: "#a855f7" }}>Min Bid: ${slot.basePrice}</span>
+                    <span style={{ fontSize: "0.95rem", fontWeight: 800, color: "#a855f7" }}>Min Bid: Rs. {slot.basePrice}</span>
                     <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "2px" }}>
                       Bid now <ArrowRight size={11} />
                     </span>
@@ -1090,7 +1090,7 @@ export default function VendorAdsPage() {
                             <div>{new Date(bid.endDate).toLocaleDateString()}</div>
                           </td>
                           <td style={{ padding: "1rem 1.25rem", fontWeight: 700, color: "#a855f7", fontSize: "0.9rem" }}>
-                            ${bid.bidAmount}
+                            Rs. {bid.bidAmount}
                           </td>
                           <td style={{ padding: "1rem 1.25rem", fontSize: "0.85rem", color: "var(--text-primary)", fontWeight: 600 }}>
                             {bid.impressions || 0}
@@ -1222,7 +1222,7 @@ export default function VendorAdsPage() {
                         {item.referenceId || "N/A"}
                       </td>
                       <td style={{ padding: "1rem 1.25rem", fontWeight: 700, color: item.type === "ad_bid" ? "#a855f7" : "#10b981", fontSize: "0.9rem" }}>
-                        {item.type === "ad_bid" ? `$${item.bidAmount}` : `Rs. ${item.amountPKR}`}
+                        {item.type === "ad_bid" ? `Rs. ${item.bidAmount}` : `Rs. ${item.amountPKR}`}
                       </td>
                       <td style={{ padding: "1rem 1.25rem" }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
@@ -1282,7 +1282,7 @@ export default function VendorAdsPage() {
                   <select id="bid-slot" className="input-field" required value={form.slotId} onChange={e => setForm({ ...form, slotId: e.target.value })} style={{ appearance: "auto", cursor: "pointer" }}>
                     <option value="">— Select placement —</option>
                     {slots.map(slot => (
-                      <option key={slot._id} value={slot._id}>{slot.name} (from ${slot.basePrice})</option>
+                      <option key={slot._id} value={slot._id}>{slot.name} (from Rs. {slot.basePrice})</option>
                     ))}
                   </select>
                 </div>
@@ -1291,12 +1291,12 @@ export default function VendorAdsPage() {
                   <select id="bid-product" className="input-field" required value={form.productId} onChange={e => setForm({ ...form, productId: e.target.value })} style={{ appearance: "auto", cursor: "pointer" }}>
                     <option value="">— Select product —</option>
                     {products.map(prod => (
-                      <option key={prod._id} value={prod._id}>{prod.title} (${prod.price})</option>
+                      <option key={prod._id} value={prod._id}>{prod.title} (Rs. {prod.price})</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "block", marginBottom: "0.4rem", fontWeight: 600 }}>Bid Offer Amount ($)</label>
+                  <label style={{ fontSize: "0.8rem", color: "var(--text-secondary)", display: "block", marginBottom: "0.4rem", fontWeight: 600 }}>Bid Offer Amount (Rs.)</label>
                   <input id="bid-amount" className="input-field" type="number" min="1" step="0.01" placeholder="e.g. 75.00" required value={form.bidAmount} onChange={e => setForm({ ...form, bidAmount: e.target.value })} />
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>

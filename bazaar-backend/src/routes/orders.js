@@ -442,7 +442,7 @@ router.get('/store/:storeId', protect, verifyTenantAccess, async (req, res) => {
 router.put('/:id/status', protect, async (req, res) => {
   const { status, driverName, driverContact, courierName, trackingId } = req.body;
   
-  const validStatuses = ['pending_payment', 'pending_approval', 'processing', 'dispatched', 'delivered', 'completed', 'cancelled'];
+  const validStatuses = ['pending_payment', 'pending_approval', 'processing', 'dispatched', 'delivered', 'completed', 'cancelled', 'return_requested', 'return_approved', 'return_rejected', 'returned'];
   if (!validStatuses.includes(status)) {
     return res.status(400).json({ success: false, message: 'Invalid target status' });
   }
@@ -1060,6 +1060,185 @@ router.get('/rto-check', protect, async (req, res) => {
       totalOrders: totalOrdersCount,
       cancelledOrders: cancelledOrdersCount,
       walletBalance
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// @desc    Customer Request Order Retake / Return
+// @route   POST /api/orders/:id/return
+// @access  Private (Shopper)
+router.post('/:id/return', protect, async (req, res) => {
+  const { reason, returnEvidenceUrl } = req.body;
+
+  if (!reason || !reason.trim()) {
+    return res.status(400).json({ success: false, message: 'Return/retake reason is required.' });
+  }
+
+  if (!returnEvidenceUrl || !returnEvidenceUrl.trim()) {
+    return res.status(400).json({ success: false, message: 'Photo evidence screenshot/image is required for product retake requests.' });
+  }
+
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    if (order.shopperId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Access denied: You can only request returns for your own orders.' });
+    }
+
+    if (order.status !== 'delivered') {
+      return res.status(400).json({ success: false, message: 'Return policy only activates after the product has been physically delivered.' });
+    }
+
+    // ── Return Policy Window Rules (3-day 100% refund vs 6-day expiry) ─────
+    const completedDate = order.updatedAt || order.createdAt;
+    const daysElapsed = (new Date() - new Date(completedDate)) / (1000 * 60 * 60 * 24);
+
+    if (daysElapsed > 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'Return Policy Expired: Returns and retakes cannot be accepted after 6 days from delivery/completion.'
+      });
+    }
+
+    const isFullRefundWindow = daysElapsed <= 3;
+    const refundGuaranteeText = isFullRefundWindow ? '100% Full Refund Guarantee' : 'Partial / Store Credit Assessment';
+
+    order.returnRequested = true;
+    order.returnReason = `[${refundGuaranteeText}] ${reason}`;
+    order.returnEvidenceUrl = returnEvidenceUrl || '';
+    order.returnRequestedAt = new Date();
+    order.status = 'return_requested';
+
+    await order.save();
+
+    // Push notification to store operator
+    const store = await Store.findById(order.storeId);
+    if (store && store.vendorId) {
+      const title = '⚠️ Return / Retake Requested';
+      const body = `Customer requested a retake/return for Order #${order._id.toString().slice(-8).toUpperCase()}. Reason: ${reason}`;
+      await pushNotification(store.vendorId, 'general', title, body, { orderId: order._id.toString() });
+    }
+
+    // Socket update
+    if (global.io) {
+      global.io.to(`order:${order._id.toString()}`).emit('order_status_update', {
+        orderId: order._id.toString(),
+        status: order.status,
+        returnRequested: true,
+        returnReason: reason
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Return / Retake request submitted successfully. The merchant has been notified.',
+      order
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// @desc    Vendor Approve or Reject Return/Retake Request
+// @route   PUT /api/orders/:id/return-action
+// @access  Private (Vendor or Store Admin)
+router.put('/:id/return-action', protect, async (req, res) => {
+  const { action, notes } = req.body; // 'approve' or 'reject'
+
+  if (!['approve', 'reject'].includes(action)) {
+    return res.status(400).json({ success: false, message: 'Invalid action. Choose approve or reject.' });
+  }
+
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    // Tenant check
+    const isVendor = req.user.role === 'vendor' && (req.user.tenantStores.includes(order.storeId.toString()) || req.user.activeStoreId === order.storeId.toString());
+    const isStoreAdmin = req.user.role === 'storeAdmin' && req.user.activeStoreId === order.storeId.toString();
+    const isAdmin = req.user.role === 'admin';
+
+    if (!isVendor && !isStoreAdmin && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Access denied: Unauthorized merchant context' });
+    }
+
+    if (!order.returnRequested && order.status !== 'return_requested') {
+      return res.status(400).json({ success: false, message: 'No active return request exists for this order.' });
+    }
+
+    order.returnActionNotes = notes || '';
+
+    if (action === 'approve') {
+      order.status = 'return_approved';
+      order.returnRequested = false;
+
+      // ── Process Automated Refund Credit to Shopper Wallet Balance ──────
+      try {
+        const ShopperProfile = (await import('../models/ShopperProfile.js')).default;
+        let profile = await ShopperProfile.findOne({ userId: order.shopperId });
+        if (!profile) {
+          profile = new ShopperProfile({ userId: order.shopperId });
+        }
+        profile.balancePKR = (profile.balancePKR || 0) + order.totalAmount;
+        await profile.save();
+      } catch (refundErr) {
+        console.error('[Refund Engine Error] Failed to credit shopper wallet:', refundErr.message);
+      }
+
+      // ── Reverse Logistics Handling (In-City vs Out-of-City) ───────────────
+      let logisticsInstruction = '';
+      if (order.deliveryType === 'in-city') {
+        logisticsInstruction = `A store rider (${order.driverName || 'Rider'}) will arrive at your address to collect the item.`;
+      } else {
+        const courier = order.courierName || 'TCS/Trax';
+        logisticsInstruction = `A Reverse Logistics Pickup Waybill (${courier} Ref #${order.trackingId || order._id.toString().slice(-8)}) has been generated. The courier will pick up the item from your address within 24-48 hours.`;
+      }
+
+      // Send push notification to customer with return pickup instructions
+      const title = '✅ Retake / Return Approved & Refunded';
+      const body = `The merchant approved your return request for Order #${order._id.toString().slice(-8).toUpperCase()}. ${logisticsInstruction} Rs. ${order.totalAmount.toLocaleString()} has been refunded to your Shopper Wallet.`;
+      await pushNotification(order.shopperId, 'order_update', title, body, { orderId: order._id.toString() });
+
+    } else {
+      order.status = 'completed';
+      order.returnRequested = false;
+
+      // Execute payout processing to finalize merchant settlement since return was declined
+      if (!order.isPayoutProcessed) {
+        try {
+          const { processFulfillmentPayout } = await import('../services/orderService.js');
+          await processFulfillmentPayout(order._id);
+        } catch (payoutErr) {
+          console.error('[Return Decline Payout Error]', payoutErr.message);
+        }
+      }
+
+      const title = '❌ Return Request Declined';
+      const body = `The merchant declined your return request for Order #${order._id.toString().slice(-8).toUpperCase()}. Order marked completed. Note: ${notes || 'Condition failed criteria.'}`;
+      await pushNotification(order.shopperId, 'order_update', title, body, { orderId: order._id.toString() });
+    }
+
+    await order.save();
+
+    if (global.io) {
+      global.io.to(`order:${order._id.toString()}`).emit('order_status_update', {
+        orderId: order._id.toString(),
+        status: order.status,
+        returnActionNotes: notes
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Return request ${action === 'approve' ? 'approved' : 'rejected'} successfully.`,
+      order
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

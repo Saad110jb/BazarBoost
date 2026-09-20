@@ -180,30 +180,17 @@ export default function StorefrontLayout({ children }: { children: React.ReactNo
           });
 
           // Standardize client state hooks to capture incoming payloads cleanly via functional array modifiers
-          socket.on("receive_negotiation_msg", (incomingMsg: any) => {
-            console.log("Shopper received real-time negotiation message handshake:", incomingMsg);
+          const handleShopperIncoming = (incomingMsg: any) => {
+            const standardized = standardizeMessage(incomingMsg);
             setMessagesList((prev) => {
-              if (prev.some(m => m._id === incomingMsg._id)) return prev;
-              return [...prev, standardizeMessage(incomingMsg)];
+              if (prev.some(m => m._id === standardized._id)) return prev;
+              const filtered = prev.filter(m => !(m._id?.startsWith("temp_") && m.content?.messageText === standardized.content?.messageText));
+              return [...filtered, standardized];
             });
-          });
+          };
 
-          socket.on("on_negotiation_state_change", (newMsg: any) => {
-            setMessagesList(prev => {
-              const exists = prev.some(m => m._id === newMsg._id);
-              if (exists) {
-                return prev.map(m => m._id === newMsg._id ? standardizeMessage(newMsg) : m);
-              }
-              return [...prev, standardizeMessage(newMsg)];
-            });
-          });
-
-          socket.on("receive_message", (newMsg: any) => {
-            setMessagesList(prev => {
-              if (prev.some(m => m._id === newMsg._id)) return prev;
-              return [...prev, standardizeMessage(newMsg)];
-            });
-          });
+          socket.on("receive_negotiation_msg", handleShopperIncoming);
+          socket.on("receive_message", handleShopperIncoming);
         }
       })
       .catch(err => console.warn("Failed to resolve chat session:", err));
@@ -285,6 +272,30 @@ export default function StorefrontLayout({ children }: { children: React.ReactNo
     const currentUserId = user.id || user._id;
     const priceOffer = hasPrice ? priceVal : null;
     const messageText = cleanText || (priceOffer ? `Proposed Counter Price: Rs. ${priceOffer.toFixed(2)}` : "");
+
+    const tempMessage = standardizeMessage({
+      _id: `temp_${Date.now()}`,
+      roomId,
+      senderId: currentUserId,
+      text: messageText,
+      messageText,
+      proposedPrice: priceOffer,
+      priceOffer,
+      offerStatus: priceOffer ? "pending" : "none",
+      meta: {
+        roomId,
+        timestamp: new Date().toISOString(),
+        senderRole: "Customer"
+      },
+      content: { messageText, mediaUrl: null },
+      attachments: {
+        hasProductSnippet: !!activeProduct,
+        productData: currentProduct
+      }
+    });
+
+    // Optimistically update local message list
+    setMessagesList((prev) => [...prev, tempMessage]);
 
     if (socketRef.current?.connected) {
       socketRef.current.emit("send_negotiation_msg", {

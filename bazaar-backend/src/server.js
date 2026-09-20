@@ -31,8 +31,8 @@ import storeRoutes from './routes/stores.js';
 import adminRoutes from './routes/admin.js';
 import complaintRoutes from './routes/complaints.js';
 import loyaltyRoutes from './routes/loyalty.js';
+import paymentRoutes from './routes/payments.js';
 import healthRoutes from './routes/health.js';
-
 
 // Socket Event Handler
 import socketHandler from './config/socketHandler.js';
@@ -49,11 +49,8 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Serve the full uploads tree as static files.
-// Tenant-scoped directory structure (enforced by upload.js):
-//   /uploads/stores/:storeId/products/  — product multi-image gallery files
-//   /uploads/stores/:storeId/receipts/  — payment receipt images (OCR source)
-//   /uploads/stores/:storeId/assets/    — store logo and banner files
+// Serve the full uploads tree as static files from project root and src directory
+app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Mount API Routes
@@ -71,8 +68,8 @@ app.use('/api/stores', storeRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/complaints', complaintRoutes);
 app.use('/api/loyalty', loyaltyRoutes);
+app.use('/api/payments', paymentRoutes);
 app.use('/api/health', healthRoutes);
-
 
 // Root Healthcheck Route
 app.get('/', (req, res) => {
@@ -100,6 +97,7 @@ server.listen(PORT, async () => {
   console.log(`AI Sandbox OCR endpoint:     http://localhost:${PORT}/api/ai/ocr`);
   console.log(`AI Sandbox Tagging endpoint: http://localhost:${PORT}/api/ai/tag`);
   console.log(`Wallet Ledger endpoint:      http://localhost:${PORT}/api/wallet/ledger`);
+  console.log(`Payment Engine endpoint:     http://localhost:${PORT}/api/payments/initiate`);
 
   try {
     const { startCronScheduler } = await import('./services/cronService.js');

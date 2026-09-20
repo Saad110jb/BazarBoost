@@ -285,22 +285,19 @@ export default function VendorNegotiationPage() {
           socket.on("connect", handleConnect);
 
           // Standardize client state hooks to capture incoming payloads cleanly via functional array modifiers
-          socket.on("receive_negotiation_msg", (incomingMsg: any) => {
-            console.log("Vendor received real-time negotiation message handshake:", incomingMsg);
+          const handleIncomingMsg = (incomingMsg: any) => {
+            const standardized = standardizeMessage(incomingMsg);
             setMessages((prev) => {
-              if (prev.some(m => m._id === incomingMsg._id)) return prev;
-              return [...prev, standardizeMessage(incomingMsg)];
+              if (prev.some(m => m._id === standardized._id)) return prev;
+              // Remove temporary optimistic message if real DB message arrived for same sender & text
+              const filtered = prev.filter(m => !(m._id?.startsWith("temp_") && m.content?.messageText === standardized.content?.messageText));
+              return [...filtered, standardized];
             });
             fetchChats();
-          });
+          };
 
-          socket.on("receive_message", (newMsg: any) => {
-            setMessages(prev => {
-              if (prev.some(m => m._id === newMsg._id)) return prev;
-              return [...prev, standardizeMessage(newMsg)];
-            });
-            fetchChats();
-          });
+          socket.on("receive_negotiation_msg", handleIncomingMsg);
+          socket.on("receive_message", handleIncomingMsg);
 
           socket.on("chat_session_updated", () => {
             fetchChats();
@@ -372,6 +369,30 @@ export default function VendorNegotiationPage() {
 
     const lastProductInChat = [...messages].reverse().find(m => m.attachments?.hasProductSnippet)?.attachments?.productData;
     const messageText = priceOffer ? `Counter-offer: Rs. ${priceOffer.toFixed(2)}` : text;
+
+    const tempMessage = standardizeMessage({
+      _id: `temp_${Date.now()}`,
+      roomId,
+      senderId: user?._id || user?.id,
+      text: messageText,
+      messageText,
+      proposedPrice: priceOffer || null,
+      priceOffer: priceOffer || null,
+      offerStatus: priceOffer ? "pending" : "none",
+      meta: {
+        roomId,
+        timestamp: new Date().toISOString(),
+        senderRole: "Vendor"
+      },
+      content: { messageText, mediaUrl: null },
+      attachments: {
+        hasProductSnippet: !!lastProductInChat,
+        productData: lastProductInChat || null
+      }
+    });
+
+    // Optimistically update local state immediately
+    setMessages((prev) => [...prev, tempMessage]);
 
     if (socketRef.current && socketRef.current.connected) {
       socketRef.current.emit("send_negotiation_msg", {

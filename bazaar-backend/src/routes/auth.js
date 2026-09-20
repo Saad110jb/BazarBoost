@@ -898,4 +898,88 @@ router.post('/gatekeeper-login', async (req, res) => {
   }
 });
 
+// @desc    Get Shopper Wallet Balance and Withdrawal History
+// @route   GET /api/auth/shopper-wallet
+// @access  Private (Shopper)
+router.get('/shopper-wallet', protect, async (req, res) => {
+  try {
+    let profile = await ShopperProfile.findOne({ userId: req.user._id });
+    if (!profile) {
+      profile = await ShopperProfile.create({ userId: req.user._id });
+    }
+    res.json({
+      success: true,
+      balancePKR: profile.balancePKR || 0,
+      withdrawals: profile.withdrawals || []
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// @desc    Withdraw Shopper Wallet Balance to JazzCash or EasyPaisa
+// @route   POST /api/auth/shopper-wallet/withdraw
+// @access  Private (Shopper)
+router.post('/shopper-wallet/withdraw', protect, async (req, res) => {
+  const { amountPKR, method, accountNumber, accountTitle } = req.body;
+
+  if (!amountPKR || amountPKR <= 0) {
+    return res.status(400).json({ success: false, message: 'Please enter a valid withdrawal amount.' });
+  }
+
+  if (!['jazzcash', 'easypaisa'].includes(method)) {
+    return res.status(400).json({ success: false, message: 'Invalid payment method. Select JazzCash or EasyPaisa.' });
+  }
+
+  if (!accountNumber || !accountNumber.trim() || !accountTitle || !accountTitle.trim()) {
+    return res.status(400).json({ success: false, message: 'Account number and account title are required.' });
+  }
+
+  try {
+    let profile = await ShopperProfile.findOne({ userId: req.user._id });
+    if (!profile || (profile.balancePKR || 0) < amountPKR) {
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient wallet balance. Your current balance is Rs. ${profile ? profile.balancePKR : 0}`
+      });
+    }
+
+    // Deduct balance
+    profile.balancePKR -= amountPKR;
+
+    const withdrawalRecord = {
+      amountPKR,
+      method,
+      accountNumber,
+      accountTitle,
+      status: 'completed',
+      createdAt: new Date()
+    };
+
+    profile.withdrawals = profile.withdrawals || [];
+    profile.withdrawals.unshift(withdrawalRecord);
+
+    await profile.save();
+
+    // Push notification confirmation
+    const { pushNotification } = await import('../services/notificationService.js');
+    await pushNotification(
+      req.user._id,
+      'wallet_payout',
+      '💸 Wallet Transfer Successful',
+      `Rs. ${amountPKR.toLocaleString()} transferred to your ${method === 'jazzcash' ? 'JazzCash' : 'EasyPaisa'} Mobile Account (${accountNumber}).`,
+      { method, amountPKR }
+    );
+
+    res.json({
+      success: true,
+      message: `Successfully transferred Rs. ${amountPKR.toLocaleString()} to your ${method === 'jazzcash' ? 'JazzCash' : 'EasyPaisa'} account!`,
+      balancePKR: profile.balancePKR,
+      withdrawals: profile.withdrawals
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 export default router;

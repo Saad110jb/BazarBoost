@@ -670,7 +670,7 @@ export default function CartDrawer() {
                     onClick={() => { setPaymentMethod("cod"); setOrderError(""); }}
                     style={{ 
                       display: "flex", gap: "0.4rem", alignItems: "center", justifyContent: "center",
-                      padding: "0.5rem", borderRadius: "8px", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer",
+                      padding: "0.5rem", borderRadius: "8px", fontSize: "0.78rem", fontWeight: 700, cursor: "pointer",
                       border: `1.5px solid ${paymentMethod === "cod" ? "#7c3aed" : "rgba(0,0,0,0.08)"}`,
                       background: paymentMethod === "cod" ? "rgba(124,58,237,0.05)" : "#ffffff",
                       color: paymentMethod === "cod" ? "#7c3aed" : "var(--text-secondary)"
@@ -680,16 +680,42 @@ export default function CartDrawer() {
                   </button>
                   <button 
                     type="button"
+                    onClick={() => { setPaymentMethod("jazzcash"); setOrderError(""); }}
+                    style={{ 
+                      display: "flex", gap: "0.4rem", alignItems: "center", justifyContent: "center",
+                      padding: "0.5rem", borderRadius: "8px", fontSize: "0.78rem", fontWeight: 700, cursor: "pointer",
+                      border: `1.5px solid ${paymentMethod === "jazzcash" ? "#d97706" : "rgba(0,0,0,0.08)"}`,
+                      background: paymentMethod === "jazzcash" ? "rgba(217,119,6,0.08)" : "#ffffff",
+                      color: paymentMethod === "jazzcash" ? "#d97706" : "var(--text-secondary)"
+                    }}
+                  >
+                    <CreditCard size={14} /> JazzCash Wallet
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => { setPaymentMethod("easypaisa"); setOrderError(""); }}
+                    style={{ 
+                      display: "flex", gap: "0.4rem", alignItems: "center", justifyContent: "center",
+                      padding: "0.5rem", borderRadius: "8px", fontSize: "0.78rem", fontWeight: 700, cursor: "pointer",
+                      border: `1.5px solid ${paymentMethod === "easypaisa" ? "#10b981" : "rgba(0,0,0,0.08)"}`,
+                      background: paymentMethod === "easypaisa" ? "rgba(16,185,129,0.08)" : "#ffffff",
+                      color: paymentMethod === "easypaisa" ? "#10b981" : "var(--text-secondary)"
+                    }}
+                  >
+                    <CreditCard size={14} /> EasyPaisa Wallet
+                  </button>
+                  <button 
+                    type="button"
                     onClick={() => { setPaymentMethod("bank_transfer"); setOrderError(""); }}
                     style={{ 
                       display: "flex", gap: "0.4rem", alignItems: "center", justifyContent: "center",
-                      padding: "0.5rem", borderRadius: "8px", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer",
+                      padding: "0.5rem", borderRadius: "8px", fontSize: "0.78rem", fontWeight: 700, cursor: "pointer",
                       border: `1.5px solid ${paymentMethod === "bank_transfer" ? "#7c3aed" : "rgba(0,0,0,0.08)"}`,
                       background: paymentMethod === "bank_transfer" ? "rgba(124,58,237,0.05)" : "#ffffff",
                       color: paymentMethod === "bank_transfer" ? "#7c3aed" : "var(--text-secondary)"
                     }}
                   >
-                    <CreditCard size={14} /> Bank / Wallet Transfer
+                    <CreditCard size={14} /> Bank Transfer
                   </button>
                 </div>
 
@@ -742,6 +768,35 @@ export default function CartDrawer() {
                         )}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* JazzCash / EasyPaisa Mobile Wallet Prompt Input */}
+                {(paymentMethod === "jazzcash" || paymentMethod === "easypaisa") && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", background: paymentMethod === "jazzcash" ? "rgba(217,119,6,0.03)" : "rgba(16,185,129,0.03)", border: `1px solid ${paymentMethod === "jazzcash" ? "rgba(217,119,6,0.15)" : "rgba(16,185,129,0.15)"}`, borderRadius: "10px", padding: "1rem" }}>
+                    <div style={{ display: "flex", gap: "0.4rem", alignItems: "center", color: paymentMethod === "jazzcash" ? "#d97706" : "#10b981", fontWeight: 800, fontSize: "0.8rem" }}>
+                      <CreditCard size={14} />
+                      <span>{paymentMethod === "jazzcash" ? "JazzCash Direct MWALLET Prompt" : "EasyPaisa Instant Mobile Payment"}</span>
+                    </div>
+
+                    <p style={{ fontSize: "0.74rem", color: "var(--text-secondary)", lineHeight: 1.4, margin: 0 }}>
+                      An automated MPIN approval prompt will be pushed to your registered mobile device upon submitting this order.
+                    </p>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                        Mobile Account Number ({paymentMethod === "jazzcash" ? "03XX-XXXXXXX" : "03XX-XXXXXXX"})
+                      </label>
+                      <input 
+                        type="text" 
+                        className="input-field" 
+                        placeholder="e.g. 03001234567"
+                        value={customNotes.startsWith("[WALLET:") ? customNotes.split("] ")[1] || "" : ""}
+                        onChange={e => setCustomNotes(`[WALLET:${paymentMethod.toUpperCase()}] ${e.target.value}`)}
+                        style={{ fontSize: "0.85rem", height: "38px" }}
+                        required
+                      />
+                    </div>
                   </div>
                 )}
 

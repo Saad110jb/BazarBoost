@@ -38,6 +38,8 @@ const adminLinks = [
 
 const shopperLinks = [
   { href: "/", label: "Marketplace", icon: <Store size={16} /> },
+  { href: "/shopper/wallet", label: "My Wallet", icon: <Wallet size={16} /> },
+  { href: "/shopper/disputes", label: "Disputes & Support", icon: <ShieldCheck size={16} /> },
   { href: "/negotiation", label: "My Negotiations", icon: <MessageCircle size={16} /> },
 ];
 
